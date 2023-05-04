@@ -4,7 +4,7 @@ const path = require('path');
 const logFile = path.join(__dirname, 'electron-log.txt');
 
 function logToFile(message) {
-  const timestamp = new Date().toISOString();
+  const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '');
   const formattedMessage = `[${timestamp}] ${message}\n`;
 
   console.log(formattedMessage); //also send to console, ya know, cus yeah

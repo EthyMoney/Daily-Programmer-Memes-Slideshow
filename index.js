@@ -23,7 +23,7 @@ function createWindow() {
 
 async function startup() {
   // wait 5 seconds before creating window to allow time for ensuring today's images are downloaded
-  logToFile('Ensuring today\'s images are downloaded and ready...\n')
+  logToFile('Ensuring today\'s images are downloaded and ready...')
   await sleep(5000).then(() => {
     logToFile('Memes should now be ready, starting up!')
     app.whenReady().then(createWindow);

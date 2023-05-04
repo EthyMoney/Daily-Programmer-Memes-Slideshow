@@ -22,7 +22,7 @@ if (!fs.existsSync(imagesFolderPath)) {
   runScript();
 }
 
-logToFile('Job scheduler for updating images is activated!\n');
+logToFile('Job scheduler for updating images is activated!');
 
 // Schedule the task to run every day at 8 AM
 cron.schedule('0 8 * * *', () => {
@@ -52,6 +52,6 @@ function runScript(){
 
   // Log when the script is done running
   script.on('close', (code) => {
-    logToFile(`\nMemes download script exited with code ${code} (${(code) ? 'There were errors' : 'No errors'})`);
+    logToFile(`Memes download script exited with code ${code} (${(code) ? 'There were errors' : 'No errors'})`);
   });
 }
