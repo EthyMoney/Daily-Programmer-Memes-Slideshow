@@ -35,13 +35,13 @@ Before running the application, make sure you have the following software instal
 To run the application, simply use the following command:
 `npm start`
 
-The application will then start to display the top images of the day downloaded from the ProgrammerHumor subreddit on an attached screen, cycling every 5 minutes. You can click on the screen to view the next image without waiting. You can leave it running, the images will automatically update daily without any intervention.
+The application will then start to display the top images of the day downloaded from the ProgrammerHumor subreddit on an attached screen, cycling every 5 minutes. You can click on the screen to view the next image without waiting. You can leave it running forever and the images will automatically update daily without any intervention.
 
 You may want to consider automating the startup of this app upon boot up of your device if you are using this on a dedicated device or display. This can be done by adding a startup command or shortcut/setting to your operating system. For example, on a Raspberry Pi with a desktop environment, you can add the run command to the settings for startup applications. This process will vary depending on your operating system and desktop environment used, but a quick Google search should help you find the steps for your specific setup.
 
 ## Scheduling Daily Image Downloads
 
-The application automatically runs the `download-todays-memes.js` script every day at 8 AM to download new images from the subreddit. Old images are retained as well and every day gets its own folder in the `memes-archive` directory. This allows you to go back and view images from previous days if you wish. The application will only display images from the current day, but you can manually view images from previous days by navigating to the `memes-archive` directory and opening the folder for the day you wish to view.
+The application automatically runs the `download-todays-memes.js` script every day at 8 AM to download new images from the subreddit. Old images are retained as well and every day gets its own folder in the `memes-archive` directory. The application will only display images from the current day, but you can manually view images from previous days by navigating to the `memes-archive` directory and opening the folder for the day you wish to view.
 
 ## Log Output
 
