@@ -1,10 +1,35 @@
 const cron = require('node-cron');
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
-console.log('Job scheduler for updating images is activated!');
+const todaysDate = new Date().toISOString().split('T')[0];
+const subfolder = 'memes-archive';
+const imagesFolderPath = path.join(__dirname, subfolder, todaysDate);
+
+// check for memes-archive subfolder, make if not present
+if (!fs.existsSync(path.join(__dirname, subfolder))) {
+  console.log('made memes-archive folder')
+  fs.mkdirSync(path.join(__dirname, subfolder));
+}
+// check for today's dated images folder, make if not present
+if (!fs.existsSync(imagesFolderPath)) {
+  console.log('made todays memes images folder')
+  fs.mkdirSync(imagesFolderPath);
+  // since we just made the folder, we need to run the script to download the images for today (since it won't exist yet)
+  console.log('today\'s memes images folder didn\'t exist yet, running script to download images');
+  runScript();
+}
+
+console.log('Job scheduler for updating images is activated!\n');
 
 // Schedule the task to run every day at 8 AM
 cron.schedule('0 8 * * *', () => {
+  console.log('Running cron job...');
+  runScript();
+});
+
+function runScript(){
   console.log('Running download-todays-memes.js script...');
 
   // Execute the download-todays-memes.js script
@@ -12,16 +37,20 @@ cron.schedule('0 8 * * *', () => {
 
   // Log the script's output
   script.stdout.on('data', (data) => {
-    console.log(`Output: ${data}`);
+    // trim the newline character from the end
+    data = data.toString().trim();
+    console.log(data);
   });
 
   // Log any errors
   script.stderr.on('data', (data) => {
+    // trim the newline character from the end
+    data = data.toString().trim();
     console.error(`Error: ${data}`);
   });
 
   // Log when the script is done running
   script.on('close', (code) => {
-    console.log(`download-todays-memes.js script exited with code ${code}`);
+    console.log(`\nMemes download script exited with code ${code} (${(code) ? 'There were errors' : 'No errors'})`);
   });
-});
+}

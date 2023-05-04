@@ -20,8 +20,16 @@ function createWindow() {
   //mainWindow.webContents.openDevTools(); //opens dev tools to see issues in console
 }
 
+async function startup() {
+  // wait 5 seconds before creating window to allow time for ensuring today's images are downloaded
+  console.log('Ensuring today\'s images are downloaded and ready...\n')
+  await sleep(5000).then(() => {
+    console.log('Memes should be ready, starting up!')
+    app.whenReady().then(createWindow);
+  });
+}
 
-app.whenReady().then(createWindow);
+startup();
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -44,3 +52,7 @@ ipcMain.handle('read-dir', async (event, path) => {
     throw error;
   }
 });
+
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
