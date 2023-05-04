@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const logToFile = require('./logger');
 require('./scheduler');
 
 function createWindow() {
@@ -17,14 +18,14 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
-  //mainWindow.webContents.openDevTools(); //opens dev tools to see issues in console
+  //mainWindow.webContents.openDevTools(); //opens chromium dev tools to see any issues in console
 }
 
 async function startup() {
   // wait 5 seconds before creating window to allow time for ensuring today's images are downloaded
-  console.log('Ensuring today\'s images are downloaded and ready...\n')
+  logToFile('Ensuring today\'s images are downloaded and ready...\n')
   await sleep(5000).then(() => {
-    console.log('Memes should be ready, starting up!')
+    logToFile('Memes should now be ready, starting up!')
     app.whenReady().then(createWindow);
   });
 }
@@ -48,7 +49,7 @@ ipcMain.handle('read-dir', async (event, path) => {
     const files = await fs.readdir(path);
     return files;
   } catch (error) {
-    console.error('Error reading directory:', error);
+    logToFile('Error reading directory: ' + error);
     throw error;
   }
 });

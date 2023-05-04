@@ -45,7 +45,7 @@ The application automatically runs the `download-todays-memes.js` script every d
 
 ## Log Output
 
-All Electron console.log statements are written to a file named `electron-log.txt` located in the root of the project for later review. This is useful for debugging purposes if you need it.
+All Electron (main, renderer, loader, etc) and image updater (scheduler, downloader) console.log statements are written to a file named `electron-log.txt` located in the root of the project for later review. This is useful for debugging purposes if you need it.
 
 ## License
 
