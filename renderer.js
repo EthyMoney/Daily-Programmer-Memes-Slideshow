@@ -4,32 +4,44 @@ logToFile('Renderer script started');
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const imageDir = `${window.electron.currentDir}/memes-archive/${new Date().toISOString().split('T')[0]}`;
+let imageDir = `${window.electron.currentDir}/memes-archive/${new Date().toISOString().split('T')[0]}`;
 let images = [];
 let currentImage = 0;
+let firstRun = true;
 
 logToFile('Image directory: ' + imageDir);
 
-window.electron
-  .readDir(imageDir)
-  .then((files) => {
-    logToFile('Files: ' + files);
-    images = files.filter(
-      (file) =>
-        file.endsWith('.jpg') || file.endsWith('.png') || file.endsWith('.gif')
-    );
+function updateDirectoryAndReloadImages(){
+  window.electron
+    .readDir(imageDir)
+    .then((files) => {
+      logToFile('Files: ' + files);
+      images = files.filter(
+        (file) =>
+          file.endsWith('.jpg') || file.endsWith('.png') || file.endsWith('.gif')
+      );
 
-    if (images.length > 0) {
-      logToFile('Displaying first image');
-      displayImage();
-      setInterval(displayImage, 300000); // 5 minutes
-    } else {
-      logToFile('No images found.');
-    }
-  })
-  .catch((error) => logToFile('Error reading image directory: ' + error));
+      if (images.length > 0) {
+        if (firstRun) {
+          logToFile('Displaying first image');
+          displayImage();
+          setInterval(displayImage, 300000); // 5 minutes
+          firstRun = false;
+        } else {
+          logToFile('Images directory has been updated, new images loaded.')
+        }
+      } else {
+        logToFile('No images found.');
+      }
+    })
+    .catch((error) => logToFile('Error reading image directory: ' + error));
+}
+
+updateDirectoryAndReloadImages();
 
 function displayImage() {
+  // update image directory in case it's a new day (new folder name for the new date)
+  imageDir = `${window.electron.currentDir}/memes-archive/${new Date().toISOString().split('T')[0]}`;
   logToFile('Current image index: ' + currentImage);
   const img = new Image();
   img.src = `file://${imageDir}/${images[currentImage]}`;
