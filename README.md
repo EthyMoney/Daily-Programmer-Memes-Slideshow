@@ -20,7 +20,7 @@ Before running the application, make sure you have the following software instal
 
 1. Clone this repository to your local machine:
 
-    `git clone <https://github.com/EthyMoney/DailyProgrammingMemesDisplay.git>`
+    `git clone https://github.com/EthyMoney/DailyProgrammingMemesDisplay.git`
 
 2. Navigate to the project directory:
 
