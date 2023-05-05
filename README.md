@@ -2,7 +2,7 @@
 
 # Daily Programmer Humor Memes Slideshow
 
-This is a simple Electron-based application that displays images from the top 12 hottest posts of the day from the `ProgrammerHumor` subreddit in a slideshow format. The images are downloaded daily in the morning and displayed in full screen, cycling to a new image every 5 minutes. You can also click on the screen to view the next image without waiting. Being that 12 images are downloaded daily, this allows each one to be displayed once per hour with the 5 minute cycle time. (60 minutes / 12 images = 5 minutes per image 🤓)
+This is a simple Electron-based application that displays images from the top 12 hottest posts of the day from the [ProgrammerHumor](https://www.reddit.com/r/ProgrammerHumor) subreddit in a slideshow format. The images are downloaded daily in the morning and displayed in full screen, cycling to a new image every 5 minutes. You can also click on the screen to view the next image without waiting. Being that 12 images are downloaded daily, this allows each one to be displayed once per hour with the 5 minute cycle time. (60 minutes / 12 images = 5 minutes per image 🤓)
 
 ## Why?
 
