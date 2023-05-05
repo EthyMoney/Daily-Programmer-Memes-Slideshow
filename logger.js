@@ -3,8 +3,27 @@ const path = require('path');
 
 const logFile = path.join(__dirname, 'electron-log.txt');
 
+//!
+//!   NOTE: The timestamps in the log file have this format:
+//!        [MM/DD/YYYY HOUR:MINUTE:SECOND:MILLISECOND]
+//!            example: [05/05/2023 09:24:50.457]
+//!
+//!              24hr format local time is used
+//!
+
 function logToFile(message) {
-  const timestamp = new Date().toISOString().replace('T', ' ').replace('Z', '');
+  const currentLocalDate = new Date();
+  const timestamp = currentLocalDate.toLocaleString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3
+  }).replace(',', '');
+
   const formattedMessage = `[${timestamp}] ${message}\n`;
 
   console.log(formattedMessage); //also send to console, ya know, cus yeah
