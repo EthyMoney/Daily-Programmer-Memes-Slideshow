@@ -3,7 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const logToFile = require('./logger');
 
-const subredditUrl = 'https://www.reddit.com/r/ProgrammerHumor/hot/.json?limit=12';
+// Load the configuration values from config.json
+const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
+const imageCount = config.imageCount;
+
+const subredditUrl = `https://www.reddit.com/r/ProgrammerHumor/hot/.json?limit=${imageCount}`;
 const todaysDate = new Date().toISOString().split('T')[0];
 const subfolder = 'memes-archive';
 
