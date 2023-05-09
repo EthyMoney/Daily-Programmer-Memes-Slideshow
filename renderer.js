@@ -4,14 +4,25 @@ logToFile('Renderer script started');
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-let imageDir = `${window.electron.currentDir}/memes-archive/${new Date().toISOString().split('T')[0]}`;
+let imageDir = getImageDirectory();
 let images = [];
 let currentImage = 0;
 let firstRun = true;
 
 logToFile('Image directory: ' + imageDir);
 
-function updateDirectoryAndReloadImages(){
+function getImageDirectory() {
+  let today = new Date();
+  let yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  let todayDir = `${window.electron.currentDir}/memes-archive/${today.toISOString().split('T')[0]}`;
+  let yesterdayDir = `${window.electron.currentDir}/memes-archive/${yesterday.toISOString().split('T')[0]}`;
+
+  return window.electron.exists(todayDir) ? todayDir : yesterdayDir;
+}
+
+function updateDirectoryAndReloadImages() {
   window.electron
     .readDir(imageDir)
     .then((files) => {
@@ -31,17 +42,22 @@ function updateDirectoryAndReloadImages(){
           logToFile('Images directory has been updated, new images loaded.')
         }
       } else {
-        logToFile('No images found.');
+        logToFile('No images found. Retrying in 5 minutes...');
+        setTimeout(updateDirectoryAndReloadImages, 300000); // retry in 5 minutes
       }
     })
-    .catch((error) => logToFile('Error reading image directory: ' + error));
+    .catch((error) => {
+      logToFile('Error reading image directory: ' + error);
+      logToFile('Retrying in 5 minutes...');
+      setTimeout(updateDirectoryAndReloadImages, 300000); // retry in 5 minutes
+    });
 }
 
 updateDirectoryAndReloadImages();
 
 function displayImage() {
   // update image directory in case it's a new day (new folder name for the new date)
-  imageDir = `${window.electron.currentDir}/memes-archive/${new Date().toISOString().split('T')[0]}`;
+  imageDir = getImageDirectory();
   logToFile('Current image index: ' + currentImage);
   const img = new Image();
   img.src = `file://${imageDir}/${images[currentImage]}`;
