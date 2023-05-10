@@ -98,3 +98,20 @@ canvas.addEventListener('click', () => {
   logToFile('screen clicked, skipping to next image!')
   displayImage();
 });
+
+
+// The following is to hide the mouse cursor so it doesn't sit on the screen over the memes
+let cursorTimeout;
+
+function hideCursor() {
+  document.body.style.cursor = 'none';
+}
+
+window.onmousemove = function () {
+  document.body.style.cursor = 'auto';
+  clearTimeout(cursorTimeout);
+  cursorTimeout = setTimeout(hideCursor, 3000); // hides the cursor after 3 seconds of inactivity
+}
+
+// Call this once to start the behavior
+cursorTimeout = setTimeout(hideCursor, 3000);
