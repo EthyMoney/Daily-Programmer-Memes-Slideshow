@@ -40,14 +40,29 @@ function downloadImages(imageUrls) {
     axios.get(url, { responseType: 'arraybuffer' })
       .then(response => {
         const imageType = url.split('.').pop();
-        const fileName = `image-${index + 1}.${imageType}`;
-        const filePath = path.join(imagesFolderPath, fileName);
+        const fileName = `image-${index + 1}`;
+        const filePath = path.join(imagesFolderPath, fileName + '.' + imageType);
 
+        // Delete old file with the same name but different extension if exists
+        const extensions = ['jpg', 'png', 'gif'];
+        extensions.forEach(ext => {
+          if (ext !== imageType) {
+            const oldFilePath = path.join(imagesFolderPath, fileName + '.' + ext);
+            fs.unlink(oldFilePath, (err) => {
+              if (err && err.code !== 'ENOENT') {
+                // 'ENOENT' means file doesn't exist, ignore that error
+                logToFile('Error deleting old image file: ' + err);
+              }
+            });
+          }
+        });
+
+        // Write the new file
         fs.writeFile(filePath, Buffer.from(response.data), (error) => {
           if (error) {
             logToFile('Error writing image file: ' + error);
           } else {
-            logToFile(`Image ${index + 1} saved as ${fileName}`);
+            logToFile(`Image ${index + 1} saved as ${fileName}.${imageType}`);
           }
         });
       })
