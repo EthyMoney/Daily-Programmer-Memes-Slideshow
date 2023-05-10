@@ -2,10 +2,12 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const logToFile = require('./logger');
-require('./scheduler');
+const verifyTodaysImages = require('./scheduler');
 
-function createWindow() {
-  const mainWindow = new BrowserWindow({
+let splashWindow;
+
+async function createMainWindow() {
+  mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
@@ -16,22 +18,51 @@ function createWindow() {
     },
     fullscreen: true,
     autoHideMenuBar: true,
+    show: false,  // Hide the window until it's ready
   });
 
   mainWindow.loadFile('index.html');
-  //mainWindow.webContents.openDevTools(); //opens chromium dev tools to see any issues in console
+
+  // Add this event listener
+  mainWindow.once('ready-to-show', () => {
+    // First, hide the splash screen
+    splashWindow.close();
+
+    // Then, show the main window
+    mainWindow.show();
+  });
+
+  mainWindow.webContents.openDevTools(); //opens chromium dev tools to see any issues in console
 }
+
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false, // Remove window frame
+    transparent: true, // Make window background transparent
+  });
+
+  splashWindow.loadFile('splash.html');
+}
+
 
 async function startup() {
-  // wait 5 seconds before creating window to allow time for ensuring today's images are downloaded
+  // Create and show the splash window immediately
+  createSplashWindow();
+
   logToFile('Ensuring today\'s images are downloaded and ready...')
-  await sleep(5000).then(() => {
-    logToFile('Memes should now be ready, starting up!')
-    app.whenReady().then(createWindow);
-  });
+
+  // Then run the image download script
+  await verifyTodaysImages();
+
+  logToFile('Memes should now be ready, starting up!')
+
+  // Once the images are ready, create the main window
+  createMainWindow();
 }
 
-startup();
+app.whenReady().then(startup);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -41,7 +72,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    createMainWindow();
   }
 });
 
@@ -54,7 +85,3 @@ ipcMain.handle('read-dir', async (event, path) => {
     throw error;
   }
 });
-
-async function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
