@@ -24,9 +24,18 @@ function logToFile(message) {
     fractionalSecondDigits: 3
   }).replace(',', '');
 
+  // Check if message already starts with a timestamp
+  const timestampRegex = /^\[\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}\.\d{3}\]/;
+  if (timestampRegex.test(message)) {
+    // this is a duplicate log message that Electron threw back at us from the console.log statement below
+    // so, we don't want to log it to file again. These mainly come from the image downloading script.
+    console.log(message)
+    return;
+  }
+
   const formattedMessage = `[${timestamp}] ${message}\n`;
 
-  console.log(formattedMessage); //also send to console, ya know, cus yeah
+  console.log(formattedMessage); // also send to console
 
   fs.appendFile(logFile, formattedMessage, (err) => {
     if (err) {
@@ -34,5 +43,8 @@ function logToFile(message) {
     }
   });
 }
+
+module.exports = logToFile;
+
 
 module.exports = logToFile;
