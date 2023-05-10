@@ -32,7 +32,7 @@ async function createMainWindow() {
     mainWindow.show();
   });
 
-  mainWindow.webContents.openDevTools(); //opens chromium dev tools to see any issues in console
+  //mainWindow.webContents.openDevTools(); //opens chromium dev tools to see any issues in console
 }
 
 function createSplashWindow() {
