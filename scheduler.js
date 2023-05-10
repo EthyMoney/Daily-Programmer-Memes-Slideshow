@@ -3,6 +3,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const logToFile = require('./logger');
+const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
 async function verifyTodaysImages() {
   const todaysDate = new Date().toISOString().split('T')[0];
@@ -21,6 +22,11 @@ async function verifyTodaysImages() {
     fs.mkdirSync(imagesFolderPath);
     // since we just made the folder, we need to run the script to download the images for today (since it won't exist yet)
     logToFile('today\'s memes images folder didn\'t exist yet, running script to download images');
+    await runScript();
+  }
+  // if it does exist, make sure it contains the number of images we want, otherwise run the update again to populate them
+  else if (fs.readdirSync(imagesFolderPath).length < config.imageCount) {
+    logToFile('today\'s memes images folder exists but is missing images, running script to download images');
     await runScript();
   }
 }
