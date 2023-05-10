@@ -1,4 +1,5 @@
 const logToFile = window.electron.logToFile;
+const config = window.electron.config;
 
 logToFile('Renderer script started');
 
@@ -6,6 +7,7 @@ let imageDir = getImageDirectory();
 let images = [];
 let currentImage = 0;
 let firstRun = true;
+const cycleTimeMS = config.cycleTimeMinutes * 60000; // minutes to milliseconds for timeouts/intervals below
 
 logToFile('Image directory: ' + imageDir);
 
@@ -34,20 +36,20 @@ function updateDirectoryAndReloadImages() {
         if (firstRun) {
           logToFile('Displaying first image');
           displayImage();
-          setInterval(displayImage, 300000); // 5 minutes
+          setInterval(displayImage, cycleTimeMS); // configured minutes
           firstRun = false;
         } else {
           logToFile('Images directory has been updated, new images loaded.')
         }
       } else {
-        logToFile('No images found. Retrying in 5 minutes...');
-        setTimeout(updateDirectoryAndReloadImages, 300000); // retry in 5 minutes
+        logToFile(`Retrying in ${config.cycleTimeMinutes} minutes...`);
+        setTimeout(updateDirectoryAndReloadImages, cycleTimeMS); // retry in x minutes
       }
     })
     .catch((error) => {
       logToFile('Error reading image directory: ' + error);
-      logToFile('Retrying in 5 minutes...');
-      setTimeout(updateDirectoryAndReloadImages, 300000); // retry in 5 minutes
+      logToFile(`Retrying in ${config.cycleTimeMinutes} minutes...`);
+      setTimeout(updateDirectoryAndReloadImages, cycleTimeMS); // retry in x minutes
     });
 }
 
