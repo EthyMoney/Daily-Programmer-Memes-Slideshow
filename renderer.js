@@ -2,8 +2,6 @@ const logToFile = window.electron.logToFile;
 
 logToFile('Renderer script started');
 
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
 let imageDir = getImageDirectory();
 let images = [];
 let currentImage = 0;
@@ -59,32 +57,12 @@ function displayImage() {
   // update image directory in case it's a new day (new folder name for the new date)
   imageDir = getImageDirectory();
   logToFile('Current image index: ' + currentImage);
-  const img = new Image();
+
+  const img = document.getElementById('imageContainer');
   img.src = `file://${imageDir}/${images[currentImage]}`;
 
   img.onload = () => {
     logToFile('Image loaded');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    const imgAspectRatio = img.width / img.height;
-    let newWidth = canvas.width;
-    let newHeight = newWidth / imgAspectRatio;
-
-    if (newHeight > canvas.height) {
-      newHeight = canvas.height;
-      newWidth = newHeight * imgAspectRatio;
-    }
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(
-      img,
-      (canvas.width - newWidth) / 2,
-      (canvas.height - newHeight) / 2,
-      newWidth,
-      newHeight
-    );
-
     currentImage = (currentImage + 1) % images.length;
   };
 
@@ -93,8 +71,9 @@ function displayImage() {
   };
 }
 
+
 // Click event listener (for skipping to next image early)
-canvas.addEventListener('click', () => {
+document.getElementById('imageContainer').addEventListener('click', () => {
   logToFile('screen clicked, skipping to next image!')
   displayImage();
 });
