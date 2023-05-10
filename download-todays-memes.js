@@ -5,9 +5,12 @@ const logToFile = require('./logger');
 
 // Load the configuration values from config.json
 const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-const imageCount = config.imageCount;
+const desiredImageCount = config.imageCount;
+const postCount = desiredImageCount + 15; 
+// the +15 is to grab a buffer of more posts than configured, because sometimes not all posts that come back contain images or images of the filtered types below
+// this just increases the odds that we actually get the full amount of requested images from the current hottest posts
 
-const subredditUrl = `https://www.reddit.com/r/ProgrammerHumor/hot/.json?limit=${imageCount}`;
+const subredditUrl = `https://www.reddit.com/r/ProgrammerHumor/hot/.json?limit=${postCount}`;
 const todaysDate = new Date().toISOString().split('T')[0];
 const subfolder = 'memes-archive';
 
@@ -28,9 +31,13 @@ if (!fs.existsSync(imagesFolderPath)) {
 axios.get(subredditUrl)
   .then(response => {
     const posts = response.data.data.children;
-    const imageUrls = posts.map(post => post.data.url)
+    let imageUrls = posts.map(post => post.data.url)
       .filter(url => url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif'));
 
+    // If there are more imageUrls than the desired amount, remove the excess ones (this is from the extra buffer we pulled earlier)
+    if (imageUrls.length > desiredImageCount) {
+      imageUrls = imageUrls.slice(0, desiredImageCount);
+    }
     downloadImages(imageUrls);
   })
   .catch(error => logToFile('Error fetching subreddit data: ' + error));
