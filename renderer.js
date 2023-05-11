@@ -23,6 +23,8 @@ function getImageDirectory() {
 }
 
 function updateDirectoryAndReloadImages() {
+  // first, update the image directory in case it's a new day (new folder name for the new date)
+  imageDir = getImageDirectory();
   window.electron
     .readDir(imageDir)
     .then((files) => {
@@ -53,11 +55,15 @@ function updateDirectoryAndReloadImages() {
     });
 }
 
+// Initial call to update directory and load images on first run
 updateDirectoryAndReloadImages();
 
 function displayImage() {
-  // update image directory in case it's a new day (new folder name for the new date)
-  imageDir = getImageDirectory();
+  // update images directory and reload images if it's a new day
+  if (imageDir !== getImageDirectory()) {
+    updateDirectoryAndReloadImages();
+    return;
+  }
   logToFile('Current image index: ' + currentImage);
 
   const img = document.getElementById('imageContainer');
@@ -72,6 +78,9 @@ function displayImage() {
   img.onerror = (error) => {
     logToFile('Error loading image: ' + error);
     logToFile('Image path: ' + imagePath);
+    // if there's an error loading the image, attempt to reload the images and directory and try again
+    logToFile('Attempting to reload images and directory...');
+    updateDirectoryAndReloadImages();
   };
 }
 
