@@ -61,7 +61,8 @@ function displayImage() {
   logToFile('Current image index: ' + currentImage);
 
   const img = document.getElementById('imageContainer');
-  img.src = `file://${imageDir}/${images[currentImage]}`;
+  let imagePath = `file://${imageDir}/${images[currentImage]}`;
+  img.src = imagePath;
 
   img.onload = () => {
     logToFile('Image loaded');
@@ -70,6 +71,7 @@ function displayImage() {
 
   img.onerror = (error) => {
     logToFile('Error loading image: ' + error);
+    logToFile('Image path: ' + imagePath);
   };
 }
 
