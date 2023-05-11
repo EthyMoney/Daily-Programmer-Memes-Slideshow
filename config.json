@@ -1,4 +1,5 @@
 {
   "imageCount": 36,
-  "cycleTimeMinutes": 5
+  "cycleTimeMinutes": 5,
+  "debugLogToFile": true
 }

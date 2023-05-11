@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const logFile = path.join(__dirname, 'electron-log.txt');
+// Load the configuration values from config.json
+const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
 //!
 //!   NOTE: The timestamps in the log file have this format:
@@ -37,11 +39,14 @@ function logToFile(message) {
 
   console.log(formattedMessage); // also send to console
 
-  fs.appendFile(logFile, formattedMessage, (err) => {
-    if (err) {
-      console.error('Failed to write log to file:', err);
-    }
-  });
+  // Only write to file if debugLogToFile is true in config.json (default is true)
+  if (config.debugLogToFile){
+    fs.appendFile(logFile, formattedMessage, (err) => {
+      if (err) {
+        console.error('Failed to write log to file:', err);
+      }
+    });
+  }
 }
 
 module.exports = logToFile;
