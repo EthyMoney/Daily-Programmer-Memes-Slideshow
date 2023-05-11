@@ -32,7 +32,7 @@ Before running the application, make sure you have the following software instal
     
 4. (Optional) Customize the options:
 
-    You can configure how many images download each day and how often they cycle by setting that in the `config.json` file. By default, it's set to 36 images, and a cycle time of 5 minutes.
+    You can configure how many images download each day and how often they cycle by setting that in the `config.json` file. By default, it's set to 36 images, and a cycle time of 5 minutes. You can also choose whether to have logging to file enabled or not (it is enabled by default).
 
 ## Running the Application
 
@@ -49,8 +49,14 @@ The application automatically runs the `download-todays-memes.js` script every d
 
 ## Log Output
 
-All Electron (main, renderer, loader, etc) and image updater (scheduler, downloader) console.log statements are written to a file named `electron-log.txt` located in the root of the project for later review. This is useful for debugging purposes if you need it.
+All Electron (main, renderer, loader, etc) and image updater (scheduler, downloader) console.log statements are written to a file named `electron-log.txt` located in the root of the project for later review. This is useful for debugging purposes if you need it. You can disable this in the `config.json` configuration file, but this logging is enabled by default.
 
-## License
+<br>
 
+## Open Source
+
+#### License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+#### Contributing
+Contributions are welcome and encouraged! Please feel free to open issues for problems you encounter or feature requests and ideas you come up with. If you would like to contribute code, please open a pull request and describe your changes and reasoning for them. This app is my very first time working with Electron, so you will likely find some dumb things I did that could be improved or built upon. Thank you in advance for your help!
