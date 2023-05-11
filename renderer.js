@@ -99,7 +99,7 @@ function hideCursor() {
   document.body.style.cursor = 'none';
 }
 
-window.onmousemove = function () {
+document.onmousemove = function () {
   document.body.style.cursor = 'auto';
   clearTimeout(cursorTimeout);
   cursorTimeout = setTimeout(hideCursor, 3000); // hides the cursor after 3 seconds of inactivity
