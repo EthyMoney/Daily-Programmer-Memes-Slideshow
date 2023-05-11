@@ -50,6 +50,3 @@ function logToFile(message) {
 }
 
 module.exports = logToFile;
-
-
-module.exports = logToFile;
