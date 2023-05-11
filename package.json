@@ -1,15 +1,37 @@
 {
-  "name": "new-image-display",
+  "name": "daily-programmer-memes-slideshow",
   "version": "1.0.0",
-  "description": "",
+  "description": "An Electron app that fetches and displays new the top images of the day from the r/ProgrammerHumor subreddit.",
   "main": "index.js",
+  "private": true,
   "scripts": {
     "start": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "electron",
+    "images",
+    "reddit",
+    "display",
+    "desktop",
+    "fun",
+    "meme",
+    "memes",
+    "humor",
+    "programmer-humor",
+    "funny",
+    "raspberry-pi"
+  ],
+  "author": "Logan S. (EthyMoney)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EthyMoney/Daily-Programmer-Memes-Slideshow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/EthyMoney/Daily-Programmer-Memes-Slideshow/issues"
+  },
+  "homepage": "https://github.com/EthyMoney/Daily-Programmer-Memes-Slideshow#readme",
   "devDependencies": {
     "electron": "^24.2.0"
   },
