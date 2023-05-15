@@ -44,8 +44,9 @@ function updateDirectoryAndReloadImages() {
           if (images.length < config.imageCount) {
             // try reloading the directory and images in a few minutes if all images aren't present 
             // (was probably in the middle of downloading when this attempted to run to reload the images on new day)
-            logToFile('Not all images present, retrying in 3 minutes...');
+            logToFile('Not all images present, checking again in 3 minutes...');
             setTimeout(updateDirectoryAndReloadImages, 180000); // retry in 3 minutes
+            return;
           }
           logToFile('Images directory has been updated, new images loaded.')
         }
