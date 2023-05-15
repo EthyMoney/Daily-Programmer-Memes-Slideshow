@@ -41,7 +41,9 @@ To run the application, simply use the following command:
 
 The application will then start to display the top images of the day downloaded from the ProgrammerHumor subreddit on an attached screen, cycling every 5 minutes. You can click on the screen to view the next image without waiting. You can leave it running forever and the images will automatically update daily without any intervention.
 
-You may want to consider automating the startup of this app upon boot up of your device if you are using this on a dedicated device or display. This can be done by adding a startup command or shortcut/setting to your operating system. For example, on a Raspberry Pi with a desktop environment, you can add the run command to the settings for startup applications. This process will vary depending on your operating system and desktop environment used, but a quick Google search should help you find the steps for your specific setup. An example startup shell script `begin.sh` and and Gnome app file `memes-app.desktop` is included in this repo for your reference, just edit the paths in them for your use. Whatever you do though, make sure you make those files, or whatever other ones you make, executable. This is done using `chmod +x <file>`.
+You may want to consider automating the startup of this app upon boot up of your device if you are using this on a dedicated device or display. This can be done by adding a startup command or shortcut/setting to your operating system. For example, on a Raspberry Pi with a desktop environment, you can add the run command to the settings for startup applications. 
+
+This process will vary depending on your operating system and desktop environment used, but a quick Google search should help you find the steps for your specific setup. An example startup shell script `begin.sh` and and Gnome app file `memes-app.desktop` is included in this repo for your reference, just edit the paths in them for your use. Whatever you do though, make sure you make those files, or whatever other ones you make, executable. This is done using `chmod +x <file>`.
 
 ## Scheduling Daily Image Downloads
 
