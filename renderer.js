@@ -7,6 +7,7 @@ let imageDir = getImageDirectory();
 let images = [];
 let currentImage = 0;
 let firstRun = true;
+let imageInterval;
 const cycleTimeMS = config.cycleTimeMinutes * 60000; // minutes to milliseconds for timeouts/intervals below
 
 logToFile('Image directory: ' + imageDir);
@@ -38,7 +39,7 @@ function updateDirectoryAndReloadImages() {
         if (firstRun) {
           logToFile('Displaying first image');
           displayImage();
-          setInterval(displayImage, cycleTimeMS); // configured minutes
+          imageInterval = setInterval(displayImage, cycleTimeMS); // configured minutes
           firstRun = false;
         } else {
           if (images.length < config.imageCount) {
@@ -95,7 +96,9 @@ function displayImage() {
 // Click event listener (for skipping to next image early)
 document.getElementById('imageContainer').addEventListener('click', () => {
   logToFile('screen clicked, skipping to next image!')
+  clearInterval(imageInterval); // clear the existing interval
   displayImage();
+  imageInterval = setInterval(displayImage, cycleTimeMS); // reset interval timer on screen click
 });
 
 
