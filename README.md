@@ -1,4 +1,4 @@
-<img src="https://i.imgur.com/IEnO5px.png" alt="subreddit icon" width="150" height="150">
+<img src="assets/subreddit-logo.png" alt="subreddit icon" width="150" height="150">
 
 # Daily Programmer Humor Memes Slideshow
 
