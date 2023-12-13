@@ -31,7 +31,7 @@ function logToFile(message) {
   if (timestampRegex.test(message)) {
     // this is a duplicate log message that Electron threw back at us from the console.log statement below
     // so, we don't want to log it to file again. These mainly come from the image downloading script.
-    console.log(message)
+    console.log(message);
     return;
   }
 
@@ -40,7 +40,7 @@ function logToFile(message) {
   console.log(formattedMessage); // also send to console
 
   // Only write to file if debugLogToFile is true in config.json (default is true)
-  if (config.debugLogToFile){
+  if (config.debugLogToFile) {
     fs.appendFile(logFile, formattedMessage, (err) => {
       if (err) {
         console.error('Failed to write log to file:', err);

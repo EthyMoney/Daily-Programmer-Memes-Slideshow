@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 const logToFile = window.electron.logToFile;
 const config = window.electron.config;
 
@@ -49,7 +50,7 @@ function updateDirectoryAndReloadImages() {
             setTimeout(updateDirectoryAndReloadImages, 180000); // retry in 3 minutes
             return;
           }
-          logToFile('Images directory has been updated, new images loaded.')
+          logToFile('Images directory has been updated, new images loaded.');
         }
       } else {
         logToFile(`Retrying in ${config.cycleTimeMinutes} minutes...`);
@@ -95,7 +96,7 @@ function displayImage() {
 
 // Click event listener (for skipping to next image early)
 document.getElementById('imageContainer').addEventListener('click', () => {
-  logToFile('screen clicked, skipping to next image!')
+  logToFile('screen clicked, skipping to next image!');
   clearInterval(imageInterval); // clear the existing interval
   displayImage();
   imageInterval = setInterval(displayImage, cycleTimeMS); // reset interval timer on screen click
@@ -113,7 +114,7 @@ document.onmousemove = function () {
   document.body.style.cursor = 'auto';
   clearTimeout(cursorTimeout);
   cursorTimeout = setTimeout(hideCursor, 3000); // hides the cursor after 3 seconds of inactivity
-}
+};
 
 // Call this once to start the behavior
 cursorTimeout = setTimeout(hideCursor, 3000);

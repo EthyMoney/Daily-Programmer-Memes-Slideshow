@@ -6,7 +6,7 @@ const logToFile = require('./logger');
 // Load the configuration values from config.json
 const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 const desiredImageCount = config.imageCount;
-const postCount = desiredImageCount + 15; 
+const postCount = desiredImageCount + 15;
 // the +15 is to grab a buffer of more posts than configured, because sometimes not all posts that come back contain images or images of the filtered types below
 // this just increases the odds that we actually get the full amount of requested images from the current hottest posts
 
@@ -16,7 +16,7 @@ const subfolder = 'memes-archive';
 
 // check for memes-archive subfolder, make if not present
 if (!fs.existsSync(path.join(__dirname, subfolder))) {
-  logToFile('made memes-archive folder')
+  logToFile('made memes-archive folder');
   fs.mkdirSync(path.join(__dirname, subfolder));
 }
 
@@ -24,7 +24,7 @@ const imagesFolderPath = path.join(__dirname, subfolder, todaysDate);
 
 // check for today's dated images folder, make if not present
 if (!fs.existsSync(imagesFolderPath)) {
-  logToFile('made todays memes images folder')
+  logToFile('made todays memes images folder');
   fs.mkdirSync(imagesFolderPath);
 }
 
@@ -41,7 +41,7 @@ axios.get(subredditUrl)
     downloadImages(imageUrls);
   })
   .catch(error => logToFile('Error fetching subreddit data: ' + error));
-  
+
 
 function downloadImage(url, index, retryCount = 0) {
   const maxRetryCount = 5; // define the maximum number of retries

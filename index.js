@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
@@ -51,12 +52,12 @@ async function startup() {
   // Create and show the splash window immediately
   createSplashWindow();
 
-  logToFile('Ensuring today\'s images are downloaded and ready...')
+  logToFile('Ensuring today\'s images are downloaded and ready...');
 
   // Then run the image download script
   await verifyTodaysImages();
 
-  logToFile('Memes should now be ready, starting up!')
+  logToFile('Memes should now be ready, starting up!');
 
   // Once the images are ready, create the main window
   createMainWindow();

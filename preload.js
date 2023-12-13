@@ -8,7 +8,7 @@ const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 logToFile('Your config is as follows:' +
   '\n                          - Number of images: ' + config.imageCount +
   '\n                          - Cycle time: ' +
-  config.cycleTimeMinutes + ' minutes')
+  config.cycleTimeMinutes + ' minutes');
 
 contextBridge.exposeInMainWorld('electron', {
   readDir: (path) => ipcRenderer.invoke('read-dir', path),

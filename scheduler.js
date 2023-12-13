@@ -12,13 +12,13 @@ async function verifyTodaysImages() {
 
   // check for memes-archive subfolder, make if not present
   if (!fs.existsSync(path.join(__dirname, subfolder))) {
-    logToFile('made memes-archive folder')
+    logToFile('made memes-archive folder');
     fs.mkdirSync(path.join(__dirname, subfolder));
   }
 
   // check for today's dated images folder, make if not present
   if (!fs.existsSync(imagesFolderPath)) {
-    logToFile('made todays memes images folder')
+    logToFile('made todays memes images folder');
     fs.mkdirSync(imagesFolderPath);
     // since we just made the folder, we need to run the script to download the images for today (since it won't exist yet)
     logToFile('today\'s memes images folder didn\'t exist yet, running script to download images');
