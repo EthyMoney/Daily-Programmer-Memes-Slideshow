@@ -51,6 +51,7 @@ function updateDirectoryAndReloadImages() {
             return;
           }
           logToFile('Images directory has been updated, new images loaded.');
+          currentImage = 0; // reset the image index to 0 so it starts over from the beginning of the new set of images
         }
       } else {
         logToFile(`Retrying in ${config.cycleTimeMinutes} minutes...`);
