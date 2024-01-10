@@ -40,7 +40,10 @@ axios.get(subredditUrl)
     }
     downloadImages(imageUrls);
   })
-  .catch(error => logToFile('Error fetching subreddit data: ' + error));
+  .catch(error => {
+    logToFile('Error fetching subreddit data: ' + error);
+    process.exit(1);
+  });
 
 
 function downloadImage(url, index, retryCount = 0) {

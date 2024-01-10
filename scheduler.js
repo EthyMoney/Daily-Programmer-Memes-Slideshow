@@ -66,7 +66,11 @@ function runScript() {
       if (code === 0) {
         resolve();
       } else {
-        reject(`Script exited with code ${code}`);
+        // script failed, reject the promise, set a timeout to try again in 5 minutes
+        setTimeout(() => {
+          runScript();
+        }, 300000); // 5 minutes
+        reject(`Script exited with code ${code}. Will retry running in 5 minutes.`);
       }
     });
   });
