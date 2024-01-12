@@ -59,7 +59,7 @@ function updateDirectoryAndReloadImages() {
       }
     })
     .catch((error) => {
-      logToFile('Error reading image directory: ' + error);
+      logToFile('Error reading image directory: ' + error?.message);
       logToFile(`Retrying in ${config.cycleTimeMinutes} minutes...`);
       setTimeout(updateDirectoryAndReloadImages, cycleTimeMS); // retry in x minutes
     });
@@ -86,7 +86,7 @@ function displayImage() {
   };
 
   img.onerror = (error) => {
-    logToFile('Error loading image: ' + error);
+    logToFile('Error loading image: ' + error?.message);
     logToFile('Image path: ' + imagePath);
     // if there's an error loading the image, attempt to reload the images and directory and try again
     logToFile('Attempting to reload images and directory...');
