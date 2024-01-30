@@ -95,7 +95,11 @@ function downloadImage(url, index, retryCount = 0) {
 function downloadImages(imageUrls) {
   const downloadPromises = imageUrls.map((url, index) => downloadImage(url, index));
   Promise.allSettled(downloadPromises)
-    .then(() => logToFile('All images download attempts finished.'))
+    .then(() => {
+      setTimeout(() => {
+        logToFile('All image download attempts finished.');
+      }, 1000); // wait 1 second before logging to file to give the last image a chance to finish writing (promise resolves before the file is actually written)
+    })
     .catch(error => {
       if (error instanceof AggregateError) {
         // Log the individual errors
