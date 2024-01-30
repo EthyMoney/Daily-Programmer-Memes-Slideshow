@@ -10,6 +10,7 @@ let currentImage = 0;
 let firstRun = true;
 let imageInterval;
 const cycleTimeMS = config.cycleTimeMinutes * 60000; // minutes to milliseconds for timeouts/intervals below
+let imageCountFailure = false;
 
 logToFile('Image directory: ' + imageDir);
 
@@ -43,14 +44,18 @@ function updateDirectoryAndReloadImages() {
           imageInterval = setInterval(displayImage, cycleTimeMS); // configured minutes
           firstRun = false;
         } else {
-          if (images.length < config.imageCount) {
+          if (images.length < config.imageCount && !imageCountFailure) {
             // try reloading the directory and images in a few minutes if all images aren't present 
             // (was probably in the middle of downloading when this attempted to run to reload the images on new day)
             logToFile('Not all images present, checking again in 3 minutes...');
+            imageCountFailure = true;
             setTimeout(updateDirectoryAndReloadImages, 180000); // retry in 3 minutes
             return;
           }
           logToFile('Images directory has been updated, new images loaded.');
+          if (imageCountFailure) {
+            logToFile('Rolling with the images we have, there may be some missing today.');
+          }
           currentImage = 0; // reset the image index to 0 so it starts over from the beginning of the new set of images
         }
       } else {
@@ -71,6 +76,7 @@ updateDirectoryAndReloadImages();
 function displayImage() {
   // update images directory and reload images if it's a new day
   if (imageDir !== getImageDirectory()) {
+    imageCountFailure = false; // reset this flag since we're starting a new day with new images, previous day's images (and problems) don't matter anymore
     updateDirectoryAndReloadImages();
     return;
   }
