@@ -31,13 +31,22 @@ if (!fs.existsSync(imagesFolderPath)) {
 axios.get(subredditUrl)
   .then(response => {
     const posts = response.data.data.children;
+    console.log(`Fetched ${posts.length} posts from subreddit`);
     let imageUrls = posts.map(post => post.data.url)
-      .filter(url => url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif'));
+      .filter(url => {
+        const isImage = url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.jpeg');
+        if (!isImage) {
+          //console.log('Filtered out:', url);
+        }
+        return isImage;
+      });
 
+    console.log(`Found ${imageUrls.length} images/gifs in the posts`);
     // If there are more imageUrls than the desired amount, remove the excess ones (this is from the extra buffer we pulled earlier)
     if (imageUrls.length > desiredImageCount) {
       imageUrls = imageUrls.slice(0, desiredImageCount);
     }
+    console.log(`Downloading ${imageUrls.length} (configured quantity) images/gifs now...`);
     downloadImages(imageUrls);
   })
   .catch(error => {
