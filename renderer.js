@@ -37,6 +37,13 @@ function updateDirectoryAndReloadImages() {
           file.endsWith('.jpg') || file.endsWith('.png') || file.endsWith('.gif') || file.endsWith('.jpeg')
       );
 
+      // images are named by image-1.png, image-2.gif, etc. so we can sort them by the number in the filename so they display in order from 1 to n
+      images.sort((a, b) => {
+        let aNum = parseInt(a.split('-')[1].split('.')[0]);
+        let bNum = parseInt(b.split('-')[1].split('.')[0]);
+        return aNum - bNum;
+      });
+
       if (images.length > 0) {
         if (firstRun) {
           logToFile('Displaying first image');
