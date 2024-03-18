@@ -34,7 +34,7 @@ function updateDirectoryAndReloadImages() {
       logToFile('Files: ' + files);
       images = files.filter(
         (file) =>
-          file.endsWith('.jpg') || file.endsWith('.png') || file.endsWith('.gif')
+          file.endsWith('.jpg') || file.endsWith('.png') || file.endsWith('.gif') || file.endsWith('.jpeg')
       );
 
       if (images.length > 0) {

@@ -64,7 +64,7 @@ function downloadImage(url, index, retryCount = 0) {
       const filePath = path.join(imagesFolderPath, fileName + '.' + imageType);
 
       // Delete old file with the same name but different extension if exists
-      const extensions = ['jpg', 'png', 'gif'];
+      const extensions = ['jpg', 'png', 'gif', 'jpeg'];
       extensions.forEach(ext => {
         if (ext !== imageType) {
           const oldFilePath = path.join(imagesFolderPath, fileName + '.' + ext);
