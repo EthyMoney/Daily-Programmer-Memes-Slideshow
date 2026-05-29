@@ -10,7 +10,19 @@ const postCount = desiredImageCount + 15;
 // the +15 is to grab a buffer of more posts than configured, because sometimes not all posts that come back contain images or images of the filtered types below
 // this just increases the odds that we actually get the full amount of requested images from the current hottest posts
 
-const subredditUrl = `https://www.reddit.com/r/ProgrammerHumor/hot/.json?limit=${postCount}`;
+const subredditUrls = [
+  `https://www.reddit.com/r/ProgrammerHumor/hot/.json?limit=${postCount}&raw_json=1`,
+  `https://api.reddit.com/r/ProgrammerHumor/hot?limit=${postCount}&raw_json=1`
+];
+const subredditRssUrl = `https://www.reddit.com/r/ProgrammerHumor/hot.rss?limit=${postCount}`;
+const redditRequestConfig = {
+  timeout: 15000,
+  headers: {
+    // Reddit rejects many generic clients unless a descriptive user-agent is supplied.
+    'User-Agent': 'DailyProgrammerMemesSlideshow/1.0 (github.com/EthyMoney)',
+    'Accept': 'application/json'
+  }
+};
 const todaysDate = new Date().toISOString().split('T')[0];
 const subfolder = 'memes-archive';
 
@@ -28,20 +40,9 @@ if (!fs.existsSync(imagesFolderPath)) {
   fs.mkdirSync(imagesFolderPath);
 }
 
-axios.get(subredditUrl)
-  .then(response => {
-    const posts = response.data.data.children;
-    logToFile(`Fetched ${posts.length} posts from subreddit`);
-    let imageUrls = posts.map(post => post.data.url)
-      .filter(url => {
-        const isImage = url.endsWith('.jpg') || url.endsWith('.png') || url.endsWith('.gif') || url.endsWith('.jpeg');
-        if (!isImage) {
-          //logToFile('Filtered out:', url);
-        }
-        return isImage;
-      });
-
-    logToFile(`Found ${imageUrls.length} images/gifs in the posts`);
+fetchImageUrls()
+  .then(imageUrls => {
+    logToFile(`Found ${imageUrls.length} images/gifs in the posts/feed`);
     // If there are more imageUrls than the desired amount, remove the excess ones (this is from the extra buffer we pulled earlier)
     if (imageUrls.length > desiredImageCount) {
       imageUrls = imageUrls.slice(0, desiredImageCount);
@@ -50,16 +51,99 @@ axios.get(subredditUrl)
     downloadImages(imageUrls);
   })
   .catch(error => {
-    logToFile('Error fetching subreddit data: ' + error);
+    const status = error.response ? ` (status ${error.response.status})` : '';
+    logToFile('Error fetching subreddit data' + status + ': ' + error.message);
     process.exit(1);
   });
+
+async function fetchSubredditResponse() {
+  let lastError;
+
+  for (const url of subredditUrls) {
+    try {
+      return await axios.get(url, redditRequestConfig);
+    } catch (error) {
+      lastError = error;
+      const status = error.response ? `status ${error.response.status}` : 'no status';
+      logToFile(`Reddit request failed at ${url} (${status}), trying fallback...`);
+    }
+  }
+
+  throw lastError;
+}
+
+async function fetchImageUrls() {
+  try {
+    const response = await fetchSubredditResponse();
+    const posts = response.data.data.children;
+    logToFile(`Fetched ${posts.length} posts from subreddit JSON endpoint`);
+    return posts
+      .map(post => normalizeImageUrl(post.data.url))
+      .filter(isSupportedImageUrl);
+  } catch (error) {
+    logToFile('JSON endpoints blocked or unavailable, trying RSS fallback...');
+    return fetchImageUrlsFromRss();
+  }
+}
+
+async function fetchImageUrlsFromRss() {
+  const response = await axios.get(subredditRssUrl, {
+    timeout: 15000,
+    headers: {
+      'User-Agent': redditRequestConfig.headers['User-Agent'],
+      'Accept': 'application/atom+xml, application/xml, text/xml'
+    }
+  });
+
+  const feedXml = response.data;
+  // Only inspect individual <entry> blocks so feed-level icon/logo URLs are excluded.
+  const entryRegex = /<entry\b[\s\S]*?<\/entry>/gi;
+  const imageUrlRegex = /https:\/\/[\w.-]+\/[\w\-./%]+?\.(?:jpg|jpeg|png|gif)(?:\?[^"]*)?/gi;
+  const entries = feedXml.match(entryRegex) || [];
+  const rawMatches = entries.flatMap(entry => entry.match(imageUrlRegex) || []);
+  const normalizedUrls = [...new Set(rawMatches.map(url => normalizeImageUrl(url)))];
+  const imageUrls = normalizedUrls.filter(isSupportedImageUrl);
+  logToFile(`Fetched ${imageUrls.length} image URLs from RSS fallback endpoint`);
+  return imageUrls;
+}
+
+function normalizeImageUrl(url) {
+  try {
+    const decodedUrl = url.replace(/&amp;/g, '&');
+    const parsedUrl = new URL(decodedUrl);
+
+    if (parsedUrl.hostname === 'preview.redd.it') {
+      return `https://i.redd.it${parsedUrl.pathname}`;
+    }
+
+    return decodedUrl;
+  } catch {
+    return url;
+  }
+}
+
+function isSupportedImageUrl(url) {
+  return /\.(jpg|jpeg|png|gif)(?:$|[?#])/i.test(url);
+}
+
+function getImageExtension(url) {
+  const withoutQuery = url.split('?')[0].split('#')[0];
+  return path.extname(withoutQuery).replace('.', '').toLowerCase();
+}
 
 
 function downloadImage(url, index, retryCount = 0) {
   const maxRetryCount = 5; // define the maximum number of retries
-  return axios.get(url, { responseType: 'arraybuffer' })
+  return axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: 15000,
+    headers: {
+      'User-Agent': redditRequestConfig.headers['User-Agent'],
+      'Referer': 'https://www.reddit.com/r/ProgrammerHumor/'
+    }
+  })
     .then(response => {
-      const imageType = url.split('.').pop();
+      const imageType = getImageExtension(url);
       const fileName = `image-${index + 1}`;
       const filePath = path.join(imagesFolderPath, fileName + '.' + imageType);
 

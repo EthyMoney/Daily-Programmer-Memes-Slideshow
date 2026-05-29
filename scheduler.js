@@ -66,11 +66,12 @@ function runScript() {
       if (code === 0) {
         resolve();
       } else {
-        // script failed, reject the promise, set a timeout to try again in 5 minutes
+        // Script failed. Retry in 5 minutes and keep this promise chain alive until a retry succeeds.
         setTimeout(() => {
-          runScript();
+          runScript()
+            .then(resolve)
+            .catch(reject);
         }, 300000); // 5 minutes
-        reject(`Script exited with code ${code}. Will retry running in 5 minutes.`);
       }
     });
   });

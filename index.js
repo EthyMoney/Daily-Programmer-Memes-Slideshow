@@ -63,7 +63,12 @@ async function startup() {
   createMainWindow();
 }
 
-app.whenReady().then(startup);
+app.whenReady().then(() => {
+  startup().catch((error) => {
+    logToFile('Fatal startup error: ' + error);
+    app.quit();
+  });
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
