@@ -80,7 +80,7 @@ async function fetchImageUrls() {
     return posts
       .map(post => normalizeImageUrl(post.data.url))
       .filter(isSupportedImageUrl);
-  } catch (error) {
+  } catch {
     logToFile('JSON endpoints blocked or unavailable, trying RSS fallback...');
     return fetchImageUrlsFromRss();
   }

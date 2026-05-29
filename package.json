@@ -33,12 +33,16 @@
   },
   "homepage": "https://github.com/EthyMoney/Daily-Programmer-Memes-Slideshow#readme",
   "devDependencies": {
-    "electron": "^39.2.7",
-    "eslint": "^9.39.2"
+    "@eslint/js": "^10.0.1",
+    "electron": "^42.3.0",
+    "eslint": "^10.4.0",
+    "globals": "^17.6.0"
   },
   "dependencies": {
-    "axios": "^1.13.2",
-    "file-type": "^21.3.0",
+    "axios": "^1.16.1",
     "node-cron": "^4.2.1"
+  },
+  "allowScripts": {
+    "electron@42.3.0": true
   }
 }
