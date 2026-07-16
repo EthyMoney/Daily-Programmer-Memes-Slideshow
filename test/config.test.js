@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { DEFAULT_CONFIG, loadConfig, validateConfig } = require('../config');
+const { DEFAULT_CONFIG, loadConfig, validateConfig } = require('../src/main/config');
 
 test('validateConfig accepts supported values', () => {
   const config = validateConfig({

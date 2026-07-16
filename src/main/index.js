@@ -1,5 +1,4 @@
 const { app, BrowserWindow, ipcMain, net, powerMonitor, protocol } = require('electron');
-const path = require('path');
 const { pathToFileURL } = require('url');
 const {
   createMemeUrl,
@@ -9,11 +8,11 @@ const {
 const { loadConfig } = require('./config');
 const { getDateKey } = require('./date-utils');
 const logToFile = require('./logger');
+const { PRELOAD_FILE, RENDERER_INDEX_FILE, SPLASH_FILE } = require('./paths');
 const { createScheduler } = require('./scheduler');
 
 const config = loadConfig();
-const indexFile = path.join(__dirname, 'index.html');
-const indexUrl = pathToFileURL(indexFile).toString();
+const indexUrl = pathToFileURL(RENDERER_INDEX_FILE).toString();
 let mainWindow = null;
 let scheduler = null;
 let splashWindow = null;
@@ -118,7 +117,7 @@ async function createMainWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: PRELOAD_FILE,
       sandbox: true,
     },
     width: 800,
@@ -135,7 +134,7 @@ async function createMainWindow() {
     mainWindow = null;
   });
 
-  await mainWindow.loadFile(indexFile);
+  await mainWindow.loadFile(RENDERER_INDEX_FILE);
 }
 
 async function createSplashWindow() {
@@ -153,7 +152,7 @@ async function createSplashWindow() {
   splashWindow.on('closed', () => {
     splashWindow = null;
   });
-  await splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+  await splashWindow.loadFile(SPLASH_FILE);
 }
 
 function notifyArchiveUpdated() {

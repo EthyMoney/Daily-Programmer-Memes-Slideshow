@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { isDateKey } = require('./date-utils');
+const { ARCHIVE_ROOT } = require('./paths');
 
-const ARCHIVE_ROOT = path.join(__dirname, 'memes-archive');
 const SUPPORTED_EXTENSIONS = new Set(['.gif', '.jpeg', '.jpg', '.png', '.webp']);
 
 function imageNumber(fileName) {

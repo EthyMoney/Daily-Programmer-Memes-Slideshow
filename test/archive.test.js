@@ -8,7 +8,7 @@ const {
   findNewestUsableArchive,
   listImagesForDate,
   resolveMemeUrl,
-} = require('../archive');
+} = require('../src/main/archive');
 
 function createTemporaryArchive(t) {
   const archiveRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'memes-archive-'));

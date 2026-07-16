@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { getDateKey, isDateKey } = require('../date-utils');
+const { getDateKey, isDateKey } = require('../src/main/date-utils');
 
 test('getDateKey uses the configured local timezone', () => {
   const eveningInChicago = new Date('2026-07-17T01:30:00.000Z');

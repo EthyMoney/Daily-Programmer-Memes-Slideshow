@@ -7,8 +7,7 @@ module.exports = [
   },
   js.configs.recommended,
   {
-    files: ['*.js', 'test/**/*.js'],
-    ignores: ['renderer.js'],
+    files: ['src/main/**/*.js', 'src/preload/**/*.js', 'test/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: globals.node,
@@ -16,7 +15,7 @@ module.exports = [
     },
   },
   {
-    files: ['renderer.js'],
+    files: ['src/renderer/**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: globals.browser,

@@ -2,12 +2,12 @@
   "name": "daily-programmer-memes-slideshow",
   "version": "1.0.0",
   "description": "An Electron app that fetches and displays images from hot r/ProgrammerHumor posts.",
-  "main": "index.js",
+  "main": "src/main/index.js",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "download": "node download-todays-memes.js",
-    "lint": "eslint index.js preload.js renderer.js scheduler.js download-todays-memes.js logger.js config.js date-utils.js archive.js test",
+    "download": "node src/main/downloader.js",
+    "lint": "eslint src test",
     "test": "node --test",
     "check": "npm run lint && npm test"
   },

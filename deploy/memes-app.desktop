@@ -1,5 +1,5 @@
 #!/usr/bin/env xdg-open
-# This is an example desktop-session autostart file that launches the app using begin.sh.
+# This is an example desktop-session autostart file that launches the app using scripts/begin.sh.
 # It starts the app after login. On a dedicated display, configure auto-login, screen blanking, and sleep as needed.
 # To use this, copy this file to /etc/xdg/autostart (or wherever this is on your machine) and make sure it is executable.
 # You can also use your desktop's startup-applications settings.
@@ -9,6 +9,6 @@ Version=1.0
 Type=Application
 Name=MemesApp
 Terminal=false
-Exec=/home/logan/Daily-Programmer-Memes-Slideshow/begin.sh
+Exec=/home/logan/Daily-Programmer-Memes-Slideshow/scripts/begin.sh
 Icon=utilities-terminal
 X-GNOME-Autostart-enabled=true

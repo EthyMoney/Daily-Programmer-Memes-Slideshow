@@ -1,8 +1,7 @@
 const fs = require('fs');
-const path = require('path');
 const { loadConfig } = require('./config');
+const { LOG_FILE } = require('./paths');
 
-const logFile = path.join(__dirname, 'electron-log.txt');
 const config = loadConfig();
 
 //!
@@ -39,9 +38,9 @@ function logToFile(message) {
 
   console.log(formattedMessage.trimEnd()); // also send to console
 
-  // Only write to file if debugLogToFile is true in config.json (default is true)
+  // Only write to file if debugLogToFile is true in config/config.json (default is true)
   if (config.debugLogToFile) {
-    fs.appendFile(logFile, formattedMessage, (err) => {
+    fs.appendFile(LOG_FILE, formattedMessage, (err) => {
       if (err) {
         console.error('Failed to write log to file:', err);
       }

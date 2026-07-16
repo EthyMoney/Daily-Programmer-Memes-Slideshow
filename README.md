@@ -34,7 +34,7 @@ Before running the application, make sure you have the following software instal
     
 4. (Optional) Customize the options:
 
-    Settings are stored in `config.json`:
+    Settings are stored in `config/config.json`:
 
     - `imageCount`: desired number of images per day (1–100)
     - `cycleTimeMinutes`: time each image remains visible
@@ -45,6 +45,20 @@ Before running the application, make sure you have the following software instal
     - `maxImageSizeMB`: maximum accepted size for a single image
 
     Invalid values are replaced with safe defaults and reported in the log.
+
+## Project Structure
+
+```text
+assets/                  Static project assets
+config/                  User-editable runtime configuration
+deploy/                  Desktop and systemd launcher examples
+scripts/                 Local startup scripts
+src/main/                Electron main process, scheduler, and downloader
+src/preload/             Sandboxed renderer bridge
+src/renderer/            Slideshow HTML, styles, and browser code
+test/                    Node test suite
+memes-archive/           Downloaded runtime images (ignored by Git)
+```
 
 ## Running the Application
 
@@ -61,15 +75,15 @@ To run only the downloader for troubleshooting:
 
 You may want to consider automating the startup of this app upon boot up of your device if you are using this on a dedicated device or display. This can be done by adding a startup command or shortcut/setting to your operating system. For example, on a Raspberry Pi with a desktop environment, you can add the run command to the settings for startup applications. 
 
-This process varies by desktop environment. The included `begin.sh` starts the project located beside the script, and `memes-app.desktop` is an example graphical-session autostart entry. Do not enable both desktop autostart and the systemd service below.
+This process varies by desktop environment. The included `scripts/begin.sh` starts the project from any working directory, and `deploy/memes-app.desktop` is an example graphical-session autostart entry. Do not enable both desktop autostart and the systemd service below.
 
-If using desktop autostart, make the launcher files executable with `chmod +x begin.sh memes-app.desktop`.
+If using desktop autostart, make the launcher files executable with `chmod +x scripts/begin.sh deploy/memes-app.desktop`.
 
 For a restart-on-failure systemd user service, copy and enable the included example:
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp memes-app.service ~/.config/systemd/user/
+cp deploy/memes-app.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now memes-app.service
 ```
@@ -94,7 +108,7 @@ The test suite covers configuration validation, timezone-aware dates, archive se
 
 ## Log Output
 
-All Electron (main, renderer, loader, etc) and image updater (scheduler, downloader) console.log statements are written to a file named `electron-log.txt` located in the root of the project for later review. This is useful for debugging purposes if you need it. You can disable this in the `config.json` configuration file, but this logging is enabled by default.
+All Electron (main, renderer, loader, etc) and image updater (scheduler, downloader) console.log statements are written to a file named `electron-log.txt` located in the root of the project for later review. This is useful for debugging purposes if you need it. You can disable this in `config/config.json`, but this logging is enabled by default.
 
 <br>
 

@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const { ARCHIVE_ROOT, ensureArchiveRoot, listImagesForDate } = require('./archive');
 const { DEFAULT_CONFIG, loadConfig } = require('./config');
 const { getDateKey } = require('./date-utils');
-const { downloadTodaysMemes } = require('./download-todays-memes');
+const { downloadTodaysMemes } = require('./downloader');
 const logToFile = require('./logger');
 
 function createScheduler({

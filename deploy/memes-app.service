@@ -7,7 +7,7 @@ PartOf=graphical-session.target
 [Service]
 Type=simple
 WorkingDirectory=%h/Daily-Programmer-Memes-Slideshow
-ExecStart=/bin/bash %h/Daily-Programmer-Memes-Slideshow/begin.sh
+ExecStart=/bin/bash %h/Daily-Programmer-Memes-Slideshow/scripts/begin.sh
 Restart=on-failure
 RestartSec=10
 
