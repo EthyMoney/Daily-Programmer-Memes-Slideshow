@@ -1,80 +1,184 @@
 const cron = require('node-cron');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const { ARCHIVE_ROOT, ensureArchiveRoot, listImagesForDate } = require('./archive');
+const { DEFAULT_CONFIG, loadConfig } = require('./config');
+const { getDateKey } = require('./date-utils');
+const { downloadTodaysMemes } = require('./download-todays-memes');
 const logToFile = require('./logger');
-const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
-async function verifyTodaysImages() {
-  const todaysDate = new Date().toISOString().split('T')[0];
-  const subfolder = 'memes-archive';
-  const imagesFolderPath = path.join(__dirname, subfolder, todaysDate);
+function createScheduler({
+  archiveRoot = ARCHIVE_ROOT,
+  config = loadConfig(),
+  downloader = downloadTodaysMemes,
+  logger = logToFile,
+  now = () => new Date(),
+  onArchiveUpdated = () => {},
+  onStatusChanged = () => {},
+} = {}) {
+  let activeDownload = null;
+  let latestStatus = {
+    checkedAt: null,
+    state: 'starting',
+  };
+  const tasks = [];
 
-  // check for memes-archive subfolder, make if not present
-  if (!fs.existsSync(path.join(__dirname, subfolder))) {
-    logToFile('made memes-archive folder');
-    fs.mkdirSync(path.join(__dirname, subfolder));
+  function reportStatus(status) {
+    latestStatus = {
+      checkedAt: now().toISOString(),
+      ...status,
+    };
+    try {
+      onStatusChanged(latestStatus);
+    } catch (error) {
+      logger(`Unable to report scheduler status: ${error.message}`);
+    }
+    return latestStatus;
   }
 
-  // check for today's dated images folder, make if not present
-  if (!fs.existsSync(imagesFolderPath)) {
-    logToFile('made todays memes images folder');
-    fs.mkdirSync(imagesFolderPath);
-    // since we just made the folder, we need to run the script to download the images for today (since it won't exist yet)
-    logToFile('today\'s memes images folder didn\'t exist yet, running script to download images');
-    await runScript();
-  }
-  // if it does exist, make sure it contains the number of images we want, otherwise run the update again to populate them
-  else if (fs.readdirSync(imagesFolderPath).length < config.imageCount) {
-    logToFile('today\'s memes images folder exists but is missing images, running script to download images');
-    await runScript();
-  }
-}
+  async function performVerification({ reason, retryPartial }) {
+    const dateKey = getDateKey(now(), config.timeZone);
+    reportStatus({ dateKey, reason, state: 'checking' });
+    await ensureArchiveRoot(archiveRoot);
+    const existingImages = await listImagesForDate(dateKey, archiveRoot);
 
-logToFile('Job scheduler for updating images is activated!');
+    if (existingImages.length >= config.imageCount) {
+      logger(`Archive verification (${reason}): ${dateKey} already has ${existingImages.length} images.`);
+      reportStatus({
+        dateKey,
+        desiredImageCount: config.imageCount,
+        imageCount: existingImages.length,
+        reason,
+        state: 'current',
+      });
+      return { complete: true, dateKey, imageCount: existingImages.length, status: 'complete' };
+    }
+    if (existingImages.length > 0 && !retryPartial) {
+      logger(`Archive verification (${reason}): using partial ${dateKey} set with ${existingImages.length} images.`);
+      reportStatus({
+        dateKey,
+        desiredImageCount: config.imageCount,
+        imageCount: existingImages.length,
+        reason,
+        state: 'partial',
+      });
+      return { complete: false, dateKey, imageCount: existingImages.length, status: 'partial' };
+    }
 
-// Schedule the task to run every day at 8 AM
-cron.schedule('0 8 * * *', () => {
-  logToFile('Running cron job...');
-  runScript();
-});
-
-function runScript() {
-  return new Promise((resolve, reject) => {
-    logToFile('Running download-todays-memes.js script...');
-
-    // Execute the download-todays-memes.js script
-    const script = spawn('node', ['./download-todays-memes.js']);
-
-    // Log the script's output
-    script.stdout.on('data', (data) => {
-      // trim the newline character from the end
-      data = data.toString().trim();
-      logToFile(data);
+    logger(`Archive verification (${reason}): downloading hot posts for ${dateKey}.`);
+    reportStatus({
+      dateKey,
+      desiredImageCount: config.imageCount,
+      imageCount: existingImages.length,
+      reason,
+      state: 'downloading',
     });
-
-    // Log any errors
-    script.stderr.on('data', (data) => {
-      // trim the newline character from the end
-      data = data.toString().trim();
-      logToFile(`Error: ${data}`);
-    });
-
-    // Log when the script is done running
-    script.on('close', (code) => {
-      logToFile(`Memes download script exited with code ${code} (${(code) ? 'There were errors' : 'No errors'})`);
-      if (code === 0) {
-        resolve();
-      } else {
-        // Script failed. Retry in 5 minutes and keep this promise chain alive until a retry succeeds.
-        setTimeout(() => {
-          runScript()
-            .then(resolve)
-            .catch(reject);
-        }, 300000); // 5 minutes
+    try {
+      const result = await downloader({ archiveRoot, config, dateKey, logger });
+      if (result.published) {
+        onArchiveUpdated(result);
       }
-    });
-  });
+      reportStatus({
+        dateKey,
+        desiredImageCount: config.imageCount,
+        imageCount: result.imageCount,
+        reason,
+        state: result.complete ? 'current' : 'partial',
+      });
+      return result;
+    } catch (error) {
+      logger(`Archive update failed: ${error.stack || error.message}`);
+      reportStatus({
+        dateKey,
+        error: error.message,
+        imageCount: existingImages.length,
+        reason,
+        retryWithinMinutes: 30,
+        state: 'failed',
+      });
+      return {
+        complete: false,
+        dateKey,
+        error: error.message,
+        imageCount: existingImages.length,
+        status: 'failed',
+      };
+    }
+  }
+
+  function verifyTodaysImages({ reason = 'manual', retryPartial = true } = {}) {
+    if (activeDownload) {
+      logger(`Archive verification (${reason}) joined the update already in progress.`);
+      return activeDownload;
+    }
+
+    activeDownload = performVerification({ reason, retryPartial })
+      .catch(error => {
+        const dateKey = getDateKey(now(), config.timeZone);
+        logger(`Archive verification (${reason}) failed: ${error.stack || error.message}`);
+        reportStatus({
+          dateKey,
+          error: error.message,
+          imageCount: 0,
+          reason,
+          retryWithinMinutes: 30,
+          state: 'failed',
+        });
+        return {
+          complete: false,
+          dateKey,
+          error: error.message,
+          imageCount: 0,
+          status: 'failed',
+        };
+      })
+      .finally(() => {
+        activeDownload = null;
+      });
+    return activeDownload;
+  }
+
+  function schedule(expression, callback, label) {
+    if (!cron.validate(expression)) {
+      throw new Error(`Invalid ${label} cron expression: ${expression}`);
+    }
+    tasks.push(cron.schedule(expression, callback, {
+      name: `memes-${label}`,
+      noOverlap: true,
+      timezone: config.timeZone,
+    }));
+  }
+
+  function start() {
+    const dailySchedule = cron.validate(config.downloadSchedule)
+      ? config.downloadSchedule
+      : DEFAULT_CONFIG.downloadSchedule;
+    if (dailySchedule !== config.downloadSchedule) {
+      logger(`Invalid download schedule ${config.downloadSchedule}; using ${dailySchedule}.`);
+    }
+    schedule(dailySchedule, () => {
+      void verifyTodaysImages({ reason: 'daily schedule', retryPartial: true });
+    }, 'daily-download');
+    schedule('15,45 * * * *', () => {
+      void verifyTodaysImages({ reason: 'catch-up check', retryPartial: false });
+    }, 'catch-up');
+    logger(`Image scheduler activated (${dailySchedule}, ${config.timeZone}).`);
+    void verifyTodaysImages({ reason: 'startup', retryPartial: true });
+  }
+
+  function stop() {
+    for (const task of tasks.splice(0)) {
+      task.stop();
+      task.destroy();
+    }
+  }
+
+  return {
+    getStatus: () => latestStatus,
+    start,
+    stop,
+    verifyTodaysImages,
+  };
 }
 
-module.exports = verifyTodaysImages;
+module.exports = {
+  createScheduler,
+};

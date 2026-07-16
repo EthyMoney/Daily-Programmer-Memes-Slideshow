@@ -1,3 +1,7 @@
 node_modules/
 memes-archive/
 electron-log.txt
+*.swp
+omega.js
+sdmon
+sdmon-*.tar.gz

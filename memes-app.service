@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily Programmer Humor Memes Slideshow
+After=graphical-session.target network-online.target
+Wants=network-online.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Daily-Programmer-Memes-Slideshow
+ExecStart=/bin/bash %h/Daily-Programmer-Memes-Slideshow/begin.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target

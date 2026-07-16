@@ -1,205 +1,522 @@
 const axios = require('axios');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { Readable, Transform } = require('stream');
+const { pipeline } = require('stream/promises');
+const { XMLParser } = require('fast-xml-parser');
+const {
+  ARCHIVE_ROOT,
+  ensureArchiveRoot,
+  listImagesForDate,
+} = require('./archive');
+const { loadConfig } = require('./config');
+const { getDateKey } = require('./date-utils');
 const logToFile = require('./logger');
 
-// Load the configuration values from config.json
-const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-const desiredImageCount = config.imageCount;
-const postCount = desiredImageCount + 15;
-// the +15 is to grab a buffer of more posts than configured, because sometimes not all posts that come back contain images or images of the filtered types below
-// this just increases the odds that we actually get the full amount of requested images from the current hottest posts
+const SUBREDDIT = 'ProgrammerHumor';
+const CANDIDATE_BUFFER = 20;
+const MAX_DOWNLOAD_RETRIES = 2;
+const USER_AGENT = 'DailyProgrammerMemesSlideshow/1.0 (github.com/EthyMoney)';
+const SUPPORTED_URL_PATTERN = /\.(?:gif|jpe?g|png|webp)(?:$|[?#])/i;
+const IMAGE_CONTENT_TYPE_PATTERN = /^image\/(?:gif|jpeg|png|webp)$/i;
 
-const subredditUrls = [
-  `https://www.reddit.com/r/ProgrammerHumor/hot/.json?limit=${postCount}&raw_json=1`,
-  `https://api.reddit.com/r/ProgrammerHumor/hot?limit=${postCount}&raw_json=1`
-];
-const subredditRssUrl = `https://www.reddit.com/r/ProgrammerHumor/hot.rss?limit=${postCount}`;
-const redditRequestConfig = {
-  timeout: 15000,
-  headers: {
-    // Reddit rejects many generic clients unless a descriptive user-agent is supplied.
-    'User-Agent': 'DailyProgrammerMemesSlideshow/1.0 (github.com/EthyMoney)',
-    'Accept': 'application/json'
+function invalidImageError(message) {
+  const error = new Error(message);
+  error.code = 'ERR_INVALID_IMAGE';
+  return error;
+}
+
+function asArray(value) {
+  if (value === undefined || value === null) {
+    return [];
   }
-};
-const todaysDate = new Date().toISOString().split('T')[0];
-const subfolder = 'memes-archive';
-
-// check for memes-archive subfolder, make if not present
-if (!fs.existsSync(path.join(__dirname, subfolder))) {
-  logToFile('made memes-archive folder');
-  fs.mkdirSync(path.join(__dirname, subfolder));
+  return Array.isArray(value) ? value : [value];
 }
 
-const imagesFolderPath = path.join(__dirname, subfolder, todaysDate);
-
-// check for today's dated images folder, make if not present
-if (!fs.existsSync(imagesFolderPath)) {
-  logToFile('made todays memes images folder');
-  fs.mkdirSync(imagesFolderPath);
+function textValue(value) {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value);
+  }
+  if (value && typeof value['#text'] === 'string') {
+    return value['#text'];
+  }
+  return '';
 }
 
-fetchImageUrls()
-  .then(imageUrls => {
-    logToFile(`Found ${imageUrls.length} images/gifs in the posts/feed`);
-    // If there are more imageUrls than the desired amount, remove the excess ones (this is from the extra buffer we pulled earlier)
-    if (imageUrls.length > desiredImageCount) {
-      imageUrls = imageUrls.slice(0, desiredImageCount);
+function normalizeImageUrl(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  try {
+    const decodedUrl = value.replaceAll('&amp;', '&').trim();
+    const parsedUrl = new URL(decodedUrl);
+    if (parsedUrl.protocol !== 'https:') {
+      return '';
     }
-    logToFile(`Downloading ${imageUrls.length} (configured quantity) images/gifs now...`);
-    downloadImages(imageUrls);
-  })
-  .catch(error => {
-    const status = error.response ? ` (status ${error.response.status})` : '';
-    logToFile('Error fetching subreddit data' + status + ': ' + error.message);
-    process.exit(1);
+    if (parsedUrl.hostname === 'preview.redd.it') {
+      return `https://i.redd.it${parsedUrl.pathname}`;
+    }
+    return parsedUrl.toString();
+  } catch {
+    return '';
+  }
+}
+
+function isSupportedImageUrl(url) {
+  return typeof url === 'string' && SUPPORTED_URL_PATTERN.test(url);
+}
+
+function getEntryPermalink(entry) {
+  const links = asArray(entry.link);
+  const alternate = links.find(link => link && link.rel === 'alternate');
+  const link = alternate || links[0];
+  return typeof link === 'string' ? link : link?.href || '';
+}
+
+function extractImageUrlsFromHtml(html) {
+  if (typeof html !== 'string') {
+    return [];
+  }
+
+  const urls = [];
+  const attributePattern = /\b(?:href|src)=["']([^"']+)["']/gi;
+  for (const match of html.matchAll(attributePattern)) {
+    const url = normalizeImageUrl(match[1]);
+    if (isSupportedImageUrl(url)) {
+      urls.push(url);
+    }
+  }
+  return [...new Set(urls)];
+}
+
+function parseRssFeed(feedXml) {
+  const parser = new XMLParser({
+    attributeNamePrefix: '',
+    ignoreAttributes: false,
+    parseTagValue: false,
+    processEntities: true,
+    trimValues: true,
   });
+  const parsed = parser.parse(feedXml);
+  const entries = asArray(parsed?.feed?.entry);
 
-async function fetchSubredditResponse() {
+  return entries.flatMap((entry, rank) => {
+    const urls = extractImageUrlsFromHtml(textValue(entry.content));
+    const preferredUrl = urls.find(url => new URL(url).hostname === 'i.redd.it') || urls[0];
+    if (!preferredUrl) {
+      return [];
+    }
+
+    return [{
+      postId: textValue(entry.id),
+      title: textValue(entry.title),
+      permalink: getEntryPermalink(entry),
+      published: textValue(entry.published || entry.updated),
+      rank,
+      url: preferredUrl,
+    }];
+  });
+}
+
+function parseJsonPosts(responseData) {
+  const posts = responseData?.data?.children || [];
+  return posts.flatMap((post, rank) => {
+    const data = post?.data || {};
+    const possibleUrls = [
+      data.url_overridden_by_dest,
+      data.url,
+      data.preview?.images?.[0]?.source?.url,
+    ].map(normalizeImageUrl);
+    const url = possibleUrls.find(isSupportedImageUrl);
+    if (!url) {
+      return [];
+    }
+
+    return [{
+      postId: data.name || data.id || '',
+      title: data.title || '',
+      permalink: data.permalink ? `https://www.reddit.com${data.permalink}` : '',
+      published: data.created_utc ? new Date(data.created_utc * 1000).toISOString() : '',
+      rank,
+      url,
+    }];
+  });
+}
+
+function uniqueCandidates(candidates) {
+  const seen = new Set();
+  return candidates.filter(candidate => {
+    if (!candidate.url || seen.has(candidate.url)) {
+      return false;
+    }
+    seen.add(candidate.url);
+    return true;
+  });
+}
+
+async function fetchCandidates({ desiredCount, httpClient = axios, logger = logToFile }) {
+  const postCount = desiredCount + CANDIDATE_BUFFER;
+  const requestConfig = {
+    timeout: 20000,
+    headers: {
+      'Accept': 'application/atom+xml, application/xml, text/xml',
+      'User-Agent': USER_AGENT,
+    },
+  };
+  const rssUrl = `https://www.reddit.com/r/${SUBREDDIT}/hot.rss?limit=${postCount}`;
+
+  try {
+    const response = await httpClient.get(rssUrl, requestConfig);
+    const candidates = uniqueCandidates(parseRssFeed(response.data));
+    if (candidates.length === 0) {
+      throw new Error('RSS feed did not contain supported images.');
+    }
+    logger(`Fetched ${candidates.length} hot-post image candidates from Reddit RSS.`);
+    return { candidates, source: 'reddit-rss' };
+  } catch (rssError) {
+    logger(`Reddit RSS request failed (${rssError.message}); trying JSON fallback.`);
+  }
+
+  const jsonUrls = [
+    `https://www.reddit.com/r/${SUBREDDIT}/hot/.json?limit=${postCount}&raw_json=1`,
+    `https://api.reddit.com/r/${SUBREDDIT}/hot?limit=${postCount}&raw_json=1`,
+  ];
   let lastError;
-
-  for (const url of subredditUrls) {
+  for (const url of jsonUrls) {
     try {
-      return await axios.get(url, redditRequestConfig);
+      const response = await httpClient.get(url, {
+        timeout: 20000,
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': USER_AGENT,
+        },
+      });
+      const candidates = uniqueCandidates(parseJsonPosts(response.data));
+      if (candidates.length > 0) {
+        logger(`Fetched ${candidates.length} hot-post image candidates from Reddit JSON.`);
+        return { candidates, source: 'reddit-json' };
+      }
+      lastError = new Error('Reddit JSON did not contain supported images.');
     } catch (error) {
       lastError = error;
-      const status = error.response ? `status ${error.response.status}` : 'no status';
-      logToFile(`Reddit request failed at ${url} (${status}), trying fallback...`);
+      logger(`Reddit JSON request failed at ${url} (${error.message}).`);
+    }
+  }
+
+  throw lastError || new Error('No supported Reddit images were found.');
+}
+
+function detectImageType(buffer) {
+  if (!Buffer.isBuffer(buffer)) {
+    return null;
+  }
+  if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return { extension: 'png', mimeType: 'image/png' };
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return { extension: 'jpeg', mimeType: 'image/jpeg' };
+  }
+  const signature = buffer.subarray(0, 6).toString('ascii');
+  if (signature === 'GIF87a' || signature === 'GIF89a') {
+    return { extension: 'gif', mimeType: 'image/gif' };
+  }
+  if (buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP') {
+    return { extension: 'webp', mimeType: 'image/webp' };
+  }
+  return null;
+}
+
+function isRetryableDownloadError(error) {
+  if (error.code === 'ERR_INVALID_IMAGE' || error.code === 'ERR_FR_MAX_BODY_LENGTH_EXCEEDED') {
+    return false;
+  }
+  const status = error.response?.status;
+  return !status || status === 408 || status === 429 || status >= 500;
+}
+
+function wait(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function writeResponseToFile(response, filePath, maxBytes) {
+  const contentType = String(response.headers?.['content-type'] || '').split(';')[0].trim();
+  if (contentType && contentType !== 'application/octet-stream' && !IMAGE_CONTENT_TYPE_PATTERN.test(contentType)) {
+    throw invalidImageError(`Unexpected content type ${contentType}.`);
+  }
+
+  const contentLength = Number(response.headers?.['content-length']);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw invalidImageError(`Image is larger than the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`);
+  }
+
+  let byteCount = 0;
+  let header = Buffer.alloc(0);
+  const hash = crypto.createHash('sha256');
+  const inspectStream = new Transform({
+    transform(chunk, encoding, callback) {
+      byteCount += chunk.length;
+      if (byteCount > maxBytes) {
+        callback(invalidImageError(`Image exceeded the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`));
+        return;
+      }
+      if (header.length < 16) {
+        header = Buffer.concat([header, chunk.subarray(0, 16 - header.length)]);
+      }
+      hash.update(chunk);
+      callback(null, chunk);
+    },
+  });
+
+  const responseStream = Buffer.isBuffer(response.data) ? Readable.from([response.data]) : response.data;
+  await pipeline(responseStream, inspectStream, fs.createWriteStream(filePath, { flags: 'wx' }));
+
+  const imageType = detectImageType(header);
+  if (!imageType) {
+    throw invalidImageError('Downloaded file does not have a supported image signature.');
+  }
+  if (contentType && contentType !== 'application/octet-stream' && contentType !== imageType.mimeType) {
+    throw invalidImageError(`Content type ${contentType} does not match ${imageType.mimeType}.`);
+  }
+
+  return {
+    bytes: byteCount,
+    extension: imageType.extension,
+    sha256: hash.digest('hex'),
+  };
+}
+
+async function downloadCandidate({
+  candidate,
+  candidateIndex,
+  httpClient = axios,
+  maxBytes,
+  stagingDirectory,
+}) {
+  const temporaryPath = path.join(stagingDirectory, `.candidate-${candidateIndex}.part`);
+  let lastError;
+
+  for (let attempt = 0; attempt <= MAX_DOWNLOAD_RETRIES; attempt += 1) {
+    await fs.promises.rm(temporaryPath, { force: true });
+    try {
+      const response = await httpClient.get(candidate.url, {
+        headers: {
+          'Accept': 'image/avif,image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8',
+          'Referer': `https://www.reddit.com/r/${SUBREDDIT}/`,
+          'User-Agent': USER_AGENT,
+        },
+        maxBodyLength: maxBytes,
+        maxContentLength: maxBytes,
+        responseType: 'stream',
+        timeout: 20000,
+      });
+      const details = await writeResponseToFile(response, temporaryPath, maxBytes);
+      return { ...candidate, ...details, temporaryPath };
+    } catch (error) {
+      lastError = error;
+      await fs.promises.rm(temporaryPath, { force: true });
+      if (attempt >= MAX_DOWNLOAD_RETRIES || !isRetryableDownloadError(error)) {
+        break;
+      }
+      await wait((2 ** attempt) * 1000 + Math.floor(Math.random() * 250));
     }
   }
 
   throw lastError;
 }
 
-async function fetchImageUrls() {
+async function publishStagingDirectory({ archiveRoot, dateKey, stagingDirectory }) {
+  const finalDirectory = path.join(archiveRoot, dateKey);
+  const backupDirectory = path.join(archiveRoot, `.${dateKey}-${Date.now()}.backup`);
+  let movedExistingDirectory = false;
+
   try {
-    const response = await fetchSubredditResponse();
-    const posts = response.data.data.children;
-    logToFile(`Fetched ${posts.length} posts from subreddit JSON endpoint`);
-    return posts
-      .map(post => normalizeImageUrl(post.data.url))
-      .filter(isSupportedImageUrl);
-  } catch {
-    logToFile('JSON endpoints blocked or unavailable, trying RSS fallback...');
-    return fetchImageUrlsFromRss();
+    try {
+      await fs.promises.rename(finalDirectory, backupDirectory);
+      movedExistingDirectory = true;
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+
+    await fs.promises.rename(stagingDirectory, finalDirectory);
+  } catch (error) {
+    if (movedExistingDirectory) {
+      await fs.promises.rename(backupDirectory, finalDirectory).catch(() => {});
+    }
+    throw error;
+  }
+
+  if (movedExistingDirectory) {
+    await fs.promises.rm(backupDirectory, { recursive: true, force: true }).catch(() => {});
   }
 }
 
-async function fetchImageUrlsFromRss() {
-  const response = await axios.get(subredditRssUrl, {
-    timeout: 15000,
-    headers: {
-      'User-Agent': redditRequestConfig.headers['User-Agent'],
-      'Accept': 'application/atom+xml, application/xml, text/xml'
-    }
-  });
+async function recoverWorkingDirectories(archiveRoot, dateKey) {
+  const entries = await fs.promises.readdir(archiveRoot, { withFileTypes: true });
+  const prefix = `.${dateKey}-`;
+  const backups = entries
+    .filter(entry => entry.isDirectory() && entry.name.startsWith(prefix) && entry.name.endsWith('.backup'))
+    .map(entry => entry.name)
+    .sort()
+    .reverse();
+  const finalDirectory = path.join(archiveRoot, dateKey);
+  const finalExists = await fs.promises.access(finalDirectory).then(() => true).catch(() => false);
 
-  const feedXml = response.data;
-  // Only inspect individual <entry> blocks so feed-level icon/logo URLs are excluded.
-  const entryRegex = /<entry\b[\s\S]*?<\/entry>/gi;
-  const imageUrlRegex = /https:\/\/[\w.-]+\/[\w\-./%]+?\.(?:jpg|jpeg|png|gif)(?:\?[^"]*)?/gi;
-  const entries = feedXml.match(entryRegex) || [];
-  const rawMatches = entries.flatMap(entry => entry.match(imageUrlRegex) || []);
-  const normalizedUrls = [...new Set(rawMatches.map(url => normalizeImageUrl(url)))];
-  const imageUrls = normalizedUrls.filter(isSupportedImageUrl);
-  logToFile(`Fetched ${imageUrls.length} image URLs from RSS fallback endpoint`);
-  return imageUrls;
-}
+  if (!finalExists && backups.length > 0) {
+    await fs.promises.rename(path.join(archiveRoot, backups.shift()), finalDirectory);
+  }
 
-function normalizeImageUrl(url) {
-  try {
-    const decodedUrl = url.replace(/&amp;/g, '&');
-    const parsedUrl = new URL(decodedUrl);
-
-    if (parsedUrl.hostname === 'preview.redd.it') {
-      return `https://i.redd.it${parsedUrl.pathname}`;
-    }
-
-    return decodedUrl;
-  } catch {
-    return url;
+  const staleDirectories = entries
+    .filter(entry => entry.isDirectory() && entry.name.startsWith(prefix))
+    .map(entry => entry.name)
+    .filter(name => !backups.includes(name) || finalExists);
+  for (const name of new Set([...backups, ...staleDirectories])) {
+    await fs.promises.rm(path.join(archiveRoot, name), { recursive: true, force: true });
   }
 }
 
-function isSupportedImageUrl(url) {
-  return /\.(jpg|jpeg|png|gif)(?:$|[?#])/i.test(url);
-}
+async function downloadTodaysMemes({
+  archiveRoot = ARCHIVE_ROOT,
+  config = loadConfig(),
+  dateKey = getDateKey(new Date(), config.timeZone),
+  httpClient = axios,
+  logger = logToFile,
+} = {}) {
+  await ensureArchiveRoot(archiveRoot);
+  await recoverWorkingDirectories(archiveRoot, dateKey);
+  const stagingDirectory = await fs.promises.mkdtemp(path.join(archiveRoot, `.${dateKey}-`));
+  const existingImages = await listImagesForDate(dateKey, archiveRoot);
 
-function getImageExtension(url) {
-  const withoutQuery = url.split('?')[0].split('#')[0];
-  return path.extname(withoutQuery).replace('.', '').toLowerCase();
-}
+  try {
+    const { candidates, source } = await fetchCandidates({
+      desiredCount: config.imageCount,
+      httpClient,
+      logger,
+    });
+    logger(`Downloading up to ${config.imageCount} validated images from ${candidates.length} candidates.`);
 
+    const successes = [];
+    const seenHashes = new Set();
+    const maxBytes = config.maxImageSizeMB * 1024 * 1024;
 
-function downloadImage(url, index, retryCount = 0) {
-  const maxRetryCount = 5; // define the maximum number of retries
-  return axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: 15000,
-    headers: {
-      'User-Agent': redditRequestConfig.headers['User-Agent'],
-      'Referer': 'https://www.reddit.com/r/ProgrammerHumor/'
+    for (let start = 0; start < candidates.length && successes.length < config.imageCount;
+      start += config.maxConcurrentDownloads) {
+      const batch = candidates.slice(start, start + config.maxConcurrentDownloads);
+      const results = await Promise.allSettled(batch.map((candidate, offset) => downloadCandidate({
+        candidate,
+        candidateIndex: start + offset,
+        httpClient,
+        maxBytes,
+        stagingDirectory,
+      })));
+
+      for (let index = 0; index < results.length; index += 1) {
+        const result = results[index];
+        if (result.status === 'rejected') {
+          logger(`Skipped candidate ${start + index + 1}: ${result.reason.message}`);
+          continue;
+        }
+        if (seenHashes.has(result.value.sha256) || successes.length >= config.imageCount) {
+          await fs.promises.rm(result.value.temporaryPath, { force: true });
+          continue;
+        }
+        seenHashes.add(result.value.sha256);
+        successes.push(result.value);
+      }
     }
-  })
-    .then(response => {
-      const imageType = getImageExtension(url);
-      const fileName = `image-${index + 1}`;
-      const filePath = path.join(imagesFolderPath, fileName + '.' + imageType);
 
-      // Delete old file with the same name but different extension if exists
-      const extensions = ['jpg', 'png', 'gif', 'jpeg'];
-      extensions.forEach(ext => {
-        if (ext !== imageType) {
-          const oldFilePath = path.join(imagesFolderPath, fileName + '.' + ext);
-          fs.unlink(oldFilePath, (err) => {
-            if (err && err.code !== 'ENOENT') {
-              // 'ENOENT' means file doesn't exist, ignore that error
-              logToFile('Error deleting old image file: ' + err);
-            }
-          });
-        }
-      });
+    if (successes.length === 0) {
+      throw new Error('No image candidates downloaded successfully.');
+    }
 
-      // Write the new file
-      fs.writeFile(filePath, Buffer.from(response.data), (error) => {
-        if (error) {
-          logToFile('Error writing image file: ' + error);
-        } else {
-          logToFile(`Image ${index + 1} saved as ${fileName}.${imageType}`);
-        }
+    const manifestImages = [];
+    for (let index = 0; index < successes.length; index += 1) {
+      const image = successes[index];
+      const fileName = `image-${index + 1}.${image.extension}`;
+      await fs.promises.rename(image.temporaryPath, path.join(stagingDirectory, fileName));
+      manifestImages.push({
+        bytes: image.bytes,
+        fileName,
+        permalink: image.permalink,
+        postId: image.postId,
+        published: image.published,
+        sha256: image.sha256,
+        sourceUrl: image.url,
+        title: image.title,
       });
+    }
+
+    const complete = successes.length >= config.imageCount;
+    const manifest = {
+      complete,
+      createdAt: new Date().toISOString(),
+      date: dateKey,
+      desiredImageCount: config.imageCount,
+      imageCount: successes.length,
+      images: manifestImages,
+      source,
+      version: 1,
+    };
+    await fs.promises.writeFile(
+      path.join(stagingDirectory, '.slideshow.json'),
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      { flag: 'wx' },
+    );
+
+    if (existingImages.length >= successes.length) {
+      await fs.promises.rm(stagingDirectory, { recursive: true, force: true });
+      const existingComplete = existingImages.length >= config.imageCount;
+      logger(`Kept the existing ${dateKey} archive with ${existingImages.length} images.`);
+      return {
+        complete: existingComplete,
+        dateKey,
+        imageCount: existingImages.length,
+        published: false,
+        status: existingComplete ? 'complete' : 'partial',
+      };
+    }
+
+    await publishStagingDirectory({ archiveRoot, dateKey, stagingDirectory });
+    logger(`Published ${successes.length}/${config.imageCount} images for ${dateKey}${complete ? '.' : ' (partial set).'}`);
+    return {
+      complete,
+      dateKey,
+      imageCount: successes.length,
+      published: true,
+      status: complete ? 'complete' : 'partial',
+    };
+  } catch (error) {
+    await fs.promises.rm(stagingDirectory, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+if (require.main === module) {
+  downloadTodaysMemes()
+    .then(result => {
+      logToFile(`Download finished with status ${result.status} (${result.imageCount} images).`);
+      if (!result.complete) {
+        process.exitCode = 2;
+      }
     })
     .catch(error => {
-      logToFile('Error downloading image: ' + error);
-      if (retryCount < maxRetryCount) {
-        logToFile(`Retry attempt ${retryCount + 1} for image ${index + 1}`);
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve(downloadImage(url, index, retryCount + 1));
-          }, 1000 * retryCount); // wait for retryCount seconds before retrying
-        });
-      } else {
-        logToFile(`Max retries exceeded for image ${index + 1}`);
-      }
+      logToFile(`Download failed: ${error.stack || error.message}`);
+      process.exitCode = 1;
     });
 }
 
-function downloadImages(imageUrls) {
-  const downloadPromises = imageUrls.map((url, index) => downloadImage(url, index));
-  Promise.allSettled(downloadPromises)
-    .then(() => {
-      setTimeout(() => {
-        logToFile('All image download attempts finished.');
-      }, 1000); // wait 1 second before logging to file to give the last image a chance to finish writing (promise resolves before the file is actually written)
-    })
-    .catch(error => {
-      if (error instanceof AggregateError) {
-        // Log the individual errors
-        error.errors.forEach((err) => logToFile(err));
-      } else {
-        // Log any other type of error
-        logToFile(error);
-      }
-    });
-}
+module.exports = {
+  detectImageType,
+  downloadTodaysMemes,
+  extractImageUrlsFromHtml,
+  fetchCandidates,
+  isSupportedImageUrl,
+  normalizeImageUrl,
+  parseJsonPosts,
+  parseRssFeed,
+  writeResponseToFile,
+};

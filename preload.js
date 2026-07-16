@@ -1,19 +1,23 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const logToFile = require('./logger');
-const fs = require('fs');
-// Load the configuration values from config.json
-const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 
-// report the loaded configuration
-logToFile('Your config is as follows:' +
-  '\n                          - Number of images: ' + config.imageCount +
-  '\n                          - Cycle time: ' +
-  config.cycleTimeMinutes + ' minutes');
-
-contextBridge.exposeInMainWorld('electron', {
-  readDir: (path) => ipcRenderer.invoke('read-dir', path),
-  exists: (path) => fs.existsSync(path),
-  currentDir: __dirname,
-  logToFile,
-  config
+contextBridge.exposeInMainWorld('slideshow', {
+  getState: () => ipcRenderer.invoke('slideshow:get-state'),
+  log: message => ipcRenderer.send('slideshow:log', message),
+  retryUpdate: () => ipcRenderer.invoke('slideshow:retry-update'),
+  onArchiveUpdated: callback => {
+    if (typeof callback !== 'function') {
+      return () => {};
+    }
+    const listener = () => callback();
+    ipcRenderer.on('slideshow:archive-updated', listener);
+    return () => ipcRenderer.removeListener('slideshow:archive-updated', listener);
+  },
+  onUpdateStatus: callback => {
+    if (typeof callback !== 'function') {
+      return () => {};
+    }
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on('slideshow:update-status', listener);
+    return () => ipcRenderer.removeListener('slideshow:update-status', listener);
+  },
 });

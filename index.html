@@ -3,8 +3,9 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self';">
-  <title>Image Display</title>
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'none'; img-src meme:; script-src 'self'; style-src 'unsafe-inline';">
+  <title>Programmer Humor Slideshow</title>
   <style>
     body {
       margin: 0;
@@ -26,11 +27,76 @@
       margin: auto;
       object-fit: contain;
     }
+
+    #status {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      color: #ddd;
+      font: 1.25rem Arial, sans-serif;
+      text-align: center;
+    }
+
+    #updateBadge {
+      position: fixed;
+      z-index: 10;
+      top: 0.65rem;
+      right: 0.65rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      max-width: min(30rem, calc(100vw - 1.3rem));
+      padding: 0.55rem 0.7rem;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 0.5rem;
+      background: rgba(18, 18, 18, 0.9);
+      box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.45);
+      color: white;
+      font: 0.9rem Arial, sans-serif;
+    }
+
+    #updateBadge[data-state="success"] {
+      border-color: #46b96b;
+    }
+
+    #updateBadge[data-state="warning"] {
+      border-color: #f0ad37;
+    }
+
+    #updateBadge[data-state="error"] {
+      border-color: #ef5c5c;
+    }
+
+    #retryUpdate {
+      flex: 0 0 auto;
+      padding: 0.35rem 0.55rem;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 0.35rem;
+      background: #333;
+      color: white;
+      cursor: pointer;
+    }
+
+    #retryUpdate:disabled {
+      cursor: wait;
+      opacity: 0.6;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
   </style>
 </head>
 
 <body>
-  <img id="imageContainer" alt="Image goes here" />
+  <img id="imageContainer" alt="Programmer humor post" hidden />
+  <div id="status">Loading saved memes...</div>
+  <div id="updateBadge" data-state="warning" role="status" aria-live="polite">
+    <span id="updateStatus">Checking for new memes...</span>
+    <button id="retryUpdate" type="button" hidden>Retry now</button>
+  </div>
   <script src="renderer.js"></script>
 </body>
 

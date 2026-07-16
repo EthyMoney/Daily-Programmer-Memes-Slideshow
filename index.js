@@ -1,73 +1,213 @@
-/* eslint-disable no-undef */
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, net, powerMonitor, protocol } = require('electron');
 const path = require('path');
-const fs = require('fs').promises;
+const { pathToFileURL } = require('url');
+const {
+  createMemeUrl,
+  findNewestUsableArchive,
+  resolveMemeUrl,
+} = require('./archive');
+const { loadConfig } = require('./config');
+const { getDateKey } = require('./date-utils');
 const logToFile = require('./logger');
-const verifyTodaysImages = require('./scheduler');
+const { createScheduler } = require('./scheduler');
 
-let splashWindow;
+const config = loadConfig();
+const indexFile = path.join(__dirname, 'index.html');
+const indexUrl = pathToFileURL(indexFile).toString();
+let mainWindow = null;
+let scheduler = null;
+let splashWindow = null;
+let updateStatus = {
+  checkedAt: null,
+  state: 'starting',
+};
+
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'meme',
+  privileges: {
+    secure: true,
+    standard: true,
+    stream: true,
+    supportFetchAPI: true,
+  },
+}]);
+
+function isTrustedRenderer(frame) {
+  return frame?.url === indexUrl;
+}
+
+function assertTrustedRenderer(frame) {
+  if (!isTrustedRenderer(frame)) {
+    throw new Error('Rejected IPC request from an unexpected renderer.');
+  }
+}
+
+async function getSlideshowState() {
+  const archive = await findNewestUsableArchive();
+  return {
+    archive: archive ? {
+      dateKey: archive.dateKey,
+      revision: archive.revision,
+      images: archive.images.map(fileName => ({
+        fileName,
+        url: createMemeUrl(archive.dateKey, fileName, archive.revision),
+      })),
+    } : null,
+    config: {
+      cycleTimeMinutes: config.cycleTimeMinutes,
+      imageCount: config.imageCount,
+    },
+    todayDateKey: getDateKey(new Date(), config.timeZone),
+    updateStatus,
+  };
+}
+
+function registerIpcHandlers() {
+  ipcMain.handle('slideshow:get-state', async event => {
+    assertTrustedRenderer(event.senderFrame);
+    return getSlideshowState();
+  });
+
+  ipcMain.handle('slideshow:retry-update', async event => {
+    assertTrustedRenderer(event.senderFrame);
+    if (!scheduler) {
+      return { status: 'starting' };
+    }
+    return scheduler.verifyTodaysImages({ reason: 'manual retry', retryPartial: true });
+  });
+
+  ipcMain.on('slideshow:log', (event, message) => {
+    if (!isTrustedRenderer(event.senderFrame) || typeof message !== 'string') {
+      return;
+    }
+    const normalizedMessage = message.replace(/[\r\n]+/g, ' ').slice(0, 500);
+    logToFile(`Renderer: ${normalizedMessage}`);
+  });
+}
+
+function registerMemeProtocol() {
+  protocol.handle('meme', async request => {
+    try {
+      const filePath = await resolveMemeUrl(request.url);
+      return net.fetch(pathToFileURL(filePath).toString());
+    } catch (error) {
+      logToFile(`Rejected meme request: ${error.message}`);
+      return new Response('Image not found.', {
+        headers: { 'Content-Type': 'text/plain' },
+        status: 404,
+      });
+    }
+  });
+}
+
+function secureWindowNavigation(window) {
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.on('will-navigate', (event, targetUrl) => {
+    if (targetUrl !== indexUrl) {
+      event.preventDefault();
+    }
+  });
+}
 
 async function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
-      sandbox: false,
-    },
-    fullscreen: true,
     autoHideMenuBar: true,
-    show: false,  // Hide the window until it's ready
+    fullscreen: true,
+    height: 600,
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: true,
+    },
+    width: 800,
   });
+  secureWindowNavigation(mainWindow);
 
-  mainWindow.loadFile('index.html');
-
-  // Add this event listener
   mainWindow.once('ready-to-show', () => {
-    // First, hide the splash screen
-    splashWindow.close();
-
-    // Then, show the main window
-    mainWindow.show();
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+    }
+    mainWindow?.show();
+  });
+  mainWindow.on('closed', () => {
+    mainWindow = null;
   });
 
-  //mainWindow.webContents.openDevTools(); //opens chromium dev tools to see any issues in console
+  await mainWindow.loadFile(indexFile);
 }
 
-function createSplashWindow() {
+async function createSplashWindow() {
   splashWindow = new BrowserWindow({
-    width: 400,
+    frame: false,
     height: 300,
-    frame: false, // Remove window frame
-    transparent: true, // Make window background transparent
+    transparent: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+    width: 400,
   });
-
-  splashWindow.loadFile('splash.html');
+  splashWindow.on('closed', () => {
+    splashWindow = null;
+  });
+  await splashWindow.loadFile(path.join(__dirname, 'splash.html'));
 }
 
+function notifyArchiveUpdated() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('slideshow:archive-updated');
+  }
+}
+
+function notifyUpdateStatus(status) {
+  updateStatus = status;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('slideshow:update-status', status);
+  }
+}
 
 async function startup() {
-  // Create and show the splash window immediately
-  createSplashWindow();
+  registerMemeProtocol();
+  registerIpcHandlers();
+  await createSplashWindow();
+  await createMainWindow();
 
-  logToFile('Ensuring today\'s images are downloaded and ready...');
-
-  // Then run the image download script
-  await verifyTodaysImages();
-
-  logToFile('Memes should now be ready, starting up!');
-
-  // Once the images are ready, create the main window
-  createMainWindow();
+  scheduler = createScheduler({
+    onArchiveUpdated: notifyArchiveUpdated,
+    onStatusChanged: notifyUpdateStatus,
+  });
+  scheduler.start();
+  powerMonitor.on('resume', () => {
+    void scheduler?.verifyTodaysImages({ reason: 'system resume', retryPartial: false });
+  });
 }
 
-app.whenReady().then(() => {
-  startup().catch((error) => {
-    logToFile('Fatal startup error: ' + error);
-    app.quit();
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      mainWindow.focus();
+    }
   });
+
+  app.whenReady()
+    .then(startup)
+    .catch(error => {
+      logToFile(`Fatal startup error: ${error.stack || error.message}`);
+      app.quit();
+    });
+}
+
+app.on('before-quit', () => {
+  scheduler?.stop();
 });
 
 app.on('window-all-closed', () => {
@@ -78,16 +218,8 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createMainWindow();
-  }
-});
-
-ipcMain.handle('read-dir', async (event, path) => {
-  try {
-    const files = await fs.readdir(path);
-    return files;
-  } catch (error) {
-    logToFile('Error reading directory: ' + error);
-    throw error;
+    void createMainWindow().catch(error => {
+      logToFile(`Unable to recreate main window: ${error.stack || error.message}`);
+    });
   }
 });
