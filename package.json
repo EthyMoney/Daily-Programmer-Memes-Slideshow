@@ -41,7 +41,7 @@
   "homepage": "https://github.com/EthyMoney/Daily-Programmer-Memes-Slideshow#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "electron": "^42.7.0",
+    "electron": "^43.1.1",
     "eslint": "^10.7.0",
     "globals": "^17.7.0"
   },
@@ -51,6 +51,6 @@
     "node-cron": "^4.6.0"
   },
   "allowScripts": {
-    "electron@42.7.0": true
+    "electron@43.1.1": true
   }
 }
