@@ -48,11 +48,13 @@
       align-items: center;
       gap: 0.6rem;
       max-width: min(30rem, calc(100vw - 1.3rem));
+      box-sizing: border-box;
       padding: 0.55rem 0.7rem;
-      border: 1px solid rgba(255, 255, 255, 0.35);
+      /* Opaque, shadowless styling: the SPI display mirror redraws slowly, and
+         blended edges smear or tear while the badge appears and disappears. */
+      border: 2px solid #777;
       border-radius: 0.5rem;
-      background: rgba(18, 18, 18, 0.9);
-      box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.45);
+      background: #121212;
       color: white;
       font: 0.9rem Arial, sans-serif;
     }
@@ -93,7 +95,7 @@
 <body>
   <img id="imageContainer" alt="Programmer humor post" hidden />
   <div id="status">Loading saved memes...</div>
-  <div id="updateBadge" data-state="warning" role="status" aria-live="polite">
+  <div id="updateBadge" data-state="warning" role="status" aria-live="polite" hidden>
     <span id="updateStatus">Checking for new memes...</span>
     <button id="retryUpdate" type="button" hidden>Retry now</button>
   </div>

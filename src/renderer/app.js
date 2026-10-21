@@ -6,6 +6,8 @@ const updateStatusElement = document.getElementById('updateStatus');
 let archiveIdentity = '';
 let archiveSignature = '';
 let badgeHideTimeout = null;
+let badgeKey = '';
+let badgeShowTimeout = null;
 let cycleInterval = null;
 let cycleTimeMilliseconds = 5 * 60 * 1000;
 let currentImage = 0;
@@ -15,6 +17,7 @@ let displayedArchiveDate = '';
 let failedImages = new Set();
 let images = [];
 let isOffline = !navigator.onLine;
+let pendingBadgeKey = '';
 let refreshPromise = null;
 let todayDateKey = '';
 
@@ -40,67 +43,116 @@ function friendlyDate(dateKey) {
   }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
-function renderUpdateBadge({ showSuccess = false } = {}) {
-  window.clearTimeout(badgeHideTimeout);
-  updateBadge.hidden = false;
-  retryUpdateButton.hidden = true;
-  updateBadge.title = currentUpdateStatus.error || '';
-  const showingText = displayedArchiveDate ? ` Showing saved memes from ${friendlyDate(displayedArchiveDate)}.` : '';
+// Short-lived states (a routine check that finishes instantly, a brief network
+// blip) must never reach the screen: on the slow SPI display they render as
+// torn fragments. They are only shown once they have persisted this long.
+const BADGE_DELAY_MS = 2000;
+const SUCCESS_BADGE_MS = 8000;
+
+function describeUpdateBadge(showSuccess) {
+  const title = currentUpdateStatus.error || '';
+  const showingText = displayedArchiveDate ? ` Showing ${friendlyDate(displayedArchiveDate)}.` : '';
 
   if (isOffline) {
-    updateBadge.dataset.state = 'error';
-    updateStatusElement.textContent = `Offline.${showingText} Updates resume when the connection returns.`;
-    return;
+    return { delayed: true, state: 'error', text: `Offline.${showingText}`, title };
   }
 
   switch (currentUpdateStatus.state) {
     case 'checking':
     case 'starting':
-      updateBadge.dataset.state = 'warning';
-      updateStatusElement.textContent = `Checking for new memes...${showingText}`;
-      break;
+      return { delayed: true, state: 'warning', text: 'Checking for new memes...', title };
     case 'downloading':
-      updateBadge.dataset.state = 'warning';
-      updateStatusElement.textContent = `Downloading new memes...${showingText}`;
-      break;
+      return { delayed: true, state: 'warning', text: 'Downloading new memes...', title };
     case 'failed': {
       const errorDetail = String(currentUpdateStatus.error || '')
         .replace(/[\r\n]+/g, ' ')
         .replace(/[.]+$/, '')
-        .slice(0, 90);
-      updateBadge.dataset.state = 'error';
-      updateStatusElement.textContent = `Update failed${errorDetail ? `: ${errorDetail}` : ''}.${showingText} Retrying automatically within 30 minutes.`;
-      retryUpdateButton.hidden = false;
-      break;
+        .slice(0, 60);
+      return {
+        retry: true,
+        state: 'error',
+        text: `Update failed${errorDetail ? `: ${errorDetail}` : ''}.${showingText}`,
+        title,
+      };
     }
     case 'partial': {
       const desiredCount = currentUpdateStatus.desiredImageCount || '?';
-      updateBadge.dataset.state = 'warning';
-      updateStatusElement.textContent = `Update incomplete: ${currentUpdateStatus.imageCount}/${desiredCount} images available.${showingText}`;
-      retryUpdateButton.hidden = false;
-      break;
+      return {
+        retry: true,
+        state: 'warning',
+        text: `Update incomplete: ${currentUpdateStatus.imageCount}/${desiredCount} images.`,
+        title,
+      };
     }
     case 'current':
       if (todayDateKey && displayedArchiveDate && displayedArchiveDate < todayDateKey) {
-        updateBadge.dataset.state = 'error';
-        updateStatusElement.textContent = `Archive is out of date.${showingText}`;
-        retryUpdateButton.hidden = false;
-      } else if (showSuccess) {
-        updateBadge.dataset.state = 'success';
-        updateStatusElement.textContent = `Up to date${displayedArchiveDate ? ` · ${friendlyDate(displayedArchiveDate)}` : ''}.`;
-        badgeHideTimeout = window.setTimeout(() => {
-          if (!isOffline && currentUpdateStatus.state === 'current') {
-            updateBadge.hidden = true;
-          }
-        }, 8000);
-      } else {
-        updateBadge.hidden = true;
+        return { retry: true, state: 'error', text: `Archive is out of date.${showingText}`, title };
       }
-      break;
+      if (showSuccess) {
+        return {
+          autoHide: true,
+          state: 'success',
+          text: `Up to date${displayedArchiveDate ? ` · ${friendlyDate(displayedArchiveDate)}` : ''}.`,
+          title,
+        };
+      }
+      return null;
     default:
-      updateBadge.dataset.state = 'warning';
-      updateStatusElement.textContent = `Update status is unknown.${showingText}`;
-      retryUpdateButton.hidden = false;
+      return { retry: true, state: 'warning', text: 'Update status is unknown.', title };
+  }
+}
+
+function cancelPendingBadge() {
+  window.clearTimeout(badgeShowTimeout);
+  pendingBadgeKey = '';
+}
+
+function hideBadge() {
+  cancelPendingBadge();
+  window.clearTimeout(badgeHideTimeout);
+  updateBadge.hidden = true;
+  badgeKey = '';
+}
+
+function showBadge(badge, key) {
+  cancelPendingBadge();
+  window.clearTimeout(badgeHideTimeout);
+  updateBadge.dataset.state = badge.state;
+  updateBadge.title = badge.title;
+  updateStatusElement.textContent = badge.text;
+  retryUpdateButton.hidden = !badge.retry;
+  updateBadge.hidden = false;
+  badgeKey = key;
+  if (badge.autoHide) {
+    badgeHideTimeout = window.setTimeout(hideBadge, SUCCESS_BADGE_MS);
+  }
+}
+
+function renderUpdateBadge({ showSuccess = false } = {}) {
+  const badge = describeUpdateBadge(showSuccess);
+  if (!badge) {
+    cancelPendingBadge();
+    // Let a visible success message finish its own timer instead of being cut
+    // short by the next periodic state refresh.
+    if (!badgeKey.startsWith('success|')) {
+      hideBadge();
+    }
+    return;
+  }
+
+  const key = `${badge.state}|${badge.retry ? 'retry' : ''}|${badge.text}`;
+  if (key === badgeKey) {
+    cancelPendingBadge();
+    return;
+  }
+  if (!badge.delayed) {
+    showBadge(badge, key);
+    return;
+  }
+  if (key !== pendingBadgeKey) {
+    cancelPendingBadge();
+    pendingBadgeKey = key;
+    badgeShowTimeout = window.setTimeout(() => showBadge(badge, key), BADGE_DELAY_MS);
   }
 }
 
@@ -231,9 +283,7 @@ imageElement.addEventListener('click', () => {
 
 async function retryUpdate() {
   retryUpdateButton.disabled = true;
-  updateBadge.hidden = false;
-  updateBadge.dataset.state = 'warning';
-  updateStatusElement.textContent = 'Retrying update now...';
+  showBadge({ retry: true, state: 'warning', text: 'Retrying update now...', title: '' }, 'manual-retry');
   try {
     await window.slideshow.retryUpdate();
     await refreshState({ displayWhenChanged: true });
@@ -266,7 +316,9 @@ window.slideshow.onArchiveUpdated(() => {
 
 window.slideshow.onUpdateStatus(status => {
   currentUpdateStatus = status;
-  renderUpdateBadge({ showSuccess: status.state === 'current' });
+  // Only confirm success when something was on screen to resolve; a routine
+  // background check that finds nothing new stays invisible.
+  renderUpdateBadge({ showSuccess: status.state === 'current' && badgeKey !== '' });
 });
 
 window.addEventListener('offline', () => {
